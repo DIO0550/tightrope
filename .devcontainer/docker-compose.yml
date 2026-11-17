@@ -1,0 +1,22 @@
+services:
+  rust:
+    build:
+      context: .
+      dockerfile: ./rust/Dockerfile
+    image: tightrope-dev-environment
+    container_name: tightrope-dev-container
+    volumes:
+      - ..:/workspace:cached
+    restart: always
+    stdin_open: true
+    tty: true
+    user: vscode
+    working_dir: /workspace
+    command: /bin/bash
+    networks:
+      - mcp-network
+
+networks:
+  mcp-network:
+    driver: bridge
+    name: mcp-network

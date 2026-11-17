@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+#
+# push 前の検査（git ネイティブのフック）。Claude Code の配線に依存しない最終網。
+#
+# 違いは発火条件だけで、こちらは CLI・IDE・素の git のどれから push しても必ず走る
+# （AGENTS.md「強制力の序列」）。.claude/hooks/pre-push-check.sh もこのファイルを呼ぶ。
+#
+# 配線: git config core.hooksPath harness/githooks
+
+cd "$(git rev-parse --show-toplevel)" || exit 1
+
+# 検査は 1 つずつ独立に走らせ、落ちても止めずに最後まで走らせて、結果は最後の 1 行が言う
+# (harness/githooks/README.md「結果の読み方」)。
+. harness/githooks/lib/check-tally.sh || exit 1
+
+# ツールが無い環境では、そのツールを使う検査を飛ばして通す。検査できないことを理由に
+# push を止めても検査の質は上がらない。無条件のゲートは CI（層 1）にある。
+# 飛ばした検査は最後の行で数える。
+command -v cargo >/dev/null 2>&1 || skip_following_checks "cargo が無い"
+run_check "fmt" cargo fmt --check
+run_check "clippy" cargo clippy --all-targets -- -D warnings
+run_check "doc" env RUSTDOCFLAGS="-D rustdoc::private_intra_doc_links" cargo doc --no-deps
+run_check "test" cargo test
+resume_checks
+
+# 行数の予算(AGENTS.md「常時ロードは増やさない」)。実測と予算がずれていれば落ちる。
+run_check "行数のラチェット" bash harness/records/count.sh --ratchet
+
+# 上の数え方そのものの判定表。
+run_check "集計の判定表" bash harness/records/count-cases.sh
+
+# 層 3 のフックの判定表とテスト。フックそのものは CI では発火しないが、判定が壊れたことには
+# ここと CI でしか気づけない。どれも bash だけで走るので飛ばさない。
+run_check "作業ツリーを書き換えるサブエージェントの実行中フラグの判定表" bash .claude/hooks/lib/verification-agent-cases.sh
+run_check "親セッションの編集の判定表" bash .claude/hooks/lib/parent-session-edit-cases.sh
+run_check "判定の読み取りと報告と種別の照合の判定表" bash .claude/hooks/lib/cases-report-cases.sh
+run_check "pre-push の結果行の判定表" bash harness/githooks/lib/check-tally-cases.sh
+run_check "カナリアのテスト" bash .claude/hooks/hook-canary-test.sh
+run_check "セッション URL の通知のテスト" bash .claude/hooks/session-url-notice-test.sh
+
+# jq を使うフックのテスト。jq が無い環境では判定が変わっていなくても落ちるので飛ばす。
+command -v jq >/dev/null 2>&1 || skip_following_checks "jq が無い"
+run_check "push 前の検査フックのテスト" bash .claude/hooks/pre-push-check-test.sh
+run_check "マージ後の振り返りの促しのテスト" bash .claude/hooks/post-merge-review-test.sh
+run_check "PR が閉じる Issue の検査の判定表" bash .github/scripts/check-pr-closing-issue-cases.sh
+run_check "同じ Issue を閉じる他の PR の検査の判定表" bash .github/scripts/check-duplicate-issue-pr-cases.sh
+run_check "sticky コメントの投稿・差し替えの判定表" bash .github/scripts/upsert-sticky-comment-cases.sh
+resume_checks
+
+# 編集後の fmt / clippy フックのテストは使い捨てのクレートを作るので、cargo と jq の両方が要る。
+{ command -v cargo >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; } || skip_following_checks "cargo か jq が無い"
+run_check "編集後の fmt / clippy フックのテスト" bash .claude/hooks/post-edit-rust-test.sh
+resume_checks
+
+# この文の終了コードがフックの終了コードになる(後ろに文を足すと、失敗しても push が通る)。
+# 判定表はこの配線を lib 側からは見られないので、最後の文であることを判定表が別に確かめる。
+finish_checks

@@ -1,0 +1,79 @@
+# PR がマージ時に閉じる Issue を持っているかの検査（AGENTS.md「着手した Issue は、その回で閉じる」）。
+#
+# rust.yml とは別のワークフローにしてあるのは、**本文の編集（`edited`）で再実行する
+# 必要がある**ため。rust.yml へ `edited` を足すと、本文を直しただけで
+# fmt / clippy / test が丸ごと走り直す。
+#
+# ci-trace.yml の `workflows:` には載せない。トレースの目的は実行時間の可視化で、
+# このジョブはほとんど数秒で終わるため(待つのは 5xx の再試行と、PR を作った直後の
+# 問い合わせ直しのときだけ)。
+#
+# `duplicate-issue-pr` ジョブは同じ `closingIssuesReferences` を読むが別ジョブにしてある。
+# 閉じ忘れ(`closing-issue`)はマージを止めたい検査だが、重複(相手が open でもマージ済みでも)と
+# 閉じる Issue が既にクローズされていることは、この検査だけではどちらが正しいか判定できない
+# 情報提供にとどまるため、**判定では赤にしない**
+# 赤の意味は `check-duplicate-issue-pr.sh` の末尾のコメント。
+name: pr-closing-issue
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+concurrency:
+  group: pr-closing-issue-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  closing-issue:
+    # **このジョブはまだ必須チェックに登録されていない。** 登録はリポジトリ側の
+    # ブランチ保護の設定で、ここからは変更できない。登録されるまでは赤く出るだけで
+    # マージは止まらないので、閉じ忘れた PR を止めたいなら登録が要る。
+    # 登録したあとはジョブ名を変えない（名前で対応しているので外れる）。
+    name: PR が閉じる Issue のチェック
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    # `closingIssuesReferences` が返すのは Issue なので、`pull-requests` だけでは足りない
+    # （`permissions:` を書いた時点で、書かなかったスコープは none になる）
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 1
+
+      # PR 本文はシェルへ渡さない（PR 番号とイベント種別だけ渡す）ので、`${{ }}` の展開が
+      # コマンドになる経路を作らない
+      - name: 閉じる Issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_ACTION: ${{ github.event.action }}
+        run: bash .github/scripts/check-pr-closing-issue.sh
+
+  duplicate-issue-pr:
+    name: 同じ Issue を閉じる他の PR のチェック
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 1
+
+      # `continue-on-error` は置かない。理由と、スクリプトの中で握る終了コードは
+      # `check-duplicate-issue-pr.sh` の末尾のコメント
+      - name: 重複とクローズ済みの Issue を確認してコメントする
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: bash .github/scripts/check-duplicate-issue-pr.sh --comment
