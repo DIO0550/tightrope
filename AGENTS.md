@@ -9,7 +9,7 @@
   CLI**（`docs/tightrope-plan.md`）。出力は `coupling.json` を元に terminal / markdown / html
 - 言語: Rust（edition 2024）。構成: `src/lib.rs` が本体、`src/main.rs` は引数を受けて呼ぶだけ
 - 解析: tree-sitter（構文）＋ LSP（意味情報）＋ git 履歴（変動性）。対象は TypeScript / Rust / Java / Swift
-- 外部依存: まだ無い。足すときは「依存の更新は cooldown を通す」に従い、ここへ足す
+- 外部依存: `clap`（derive。引数）。足すときは「依存の更新は cooldown を通す」に従い、ここへ足す
 
 ## 規約一覧（常時ロード）
 

@@ -39,7 +39,7 @@ curl -s https://index.crates.io/cl/ap/clap | tail -1 | grep -o '"pubtime":"[^"]*
 ## 前提として引き受けること
 
 - **既存の `Cargo.lock` は免除される。** cooldown は入口のフィルタで、既に lock にあるバージョンは
-  そのまま通る。今は依存が無いので、最初の依存を足す回から効く
+  そのまま通る。
 - **registry 由来の依存にしか効かない。** git / path 依存は `pubtime` を持たない
 - **cooldown は検知しない。** 発見・yank されるまでの時間を稼ぐだけなので、これ単体を拠り所にしない
 - **緊急のセキュリティ修正は逃げ道を使う。** `incompatible-publish-age` を `allow` にして
