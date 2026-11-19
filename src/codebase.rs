@@ -9,7 +9,7 @@
 use std::error::Error;
 use std::ffi::OsStr;
 use std::fmt;
-use std::fs;
+use std::fs::{self, FileType};
 use std::io;
 use std::path::{Path, PathBuf};
 
@@ -17,8 +17,11 @@ use std::path::{Path, PathBuf};
 ///
 /// `.d.ts` は `Path::extension` が最後の `ts` を返すので、`ts` で入る。
 ///
-/// Why not（拡張子から tree-sitter の `grammar` を決める型に置く）: `grammar` は tree-sitter の
-/// 文法を指す語で、tree-sitter をまだ持たないここに置くと名前と実体がずれる。
+/// 暫定の置き場所。拡張子から tree-sitter の `grammar` を決める層を置いたら、拡張子の一覧を
+/// 2 箇所に持たないよう、この一覧はそちらへ寄せて消す。
+///
+/// Why not（その層の型を今作って置く）: `grammar` は tree-sitter の文法を指す語で、
+/// tree-sitter をまだ持たない型に付けると名前と実体がずれる。
 const TYPESCRIPT_EXTENSIONS: [&str; 4] = ["ts", "tsx", "mts", "cts"];
 
 /// 走査の根の下を再帰的に辿り、TypeScript のファイルのパスを返す。
@@ -27,32 +30,23 @@ const TYPESCRIPT_EXTENSIONS: [&str; 4] = ["ts", "tsx", "mts", "cts"];
 /// 並びはパスの要素順と `/` 区切りの文字列順とで `a-b/x.ts` と `a/x.ts` の前後が逆になるので、
 /// 根からの相対パスへ直すときに一緒に決める。
 ///
-/// シンボリックリンクは辿らない。ディレクトリのリンクを辿ると、循環したツリーでは OS がリンクの
-/// 解決を打ち切るまで降り続け、同じファイルを何度も返す。ファイルのリンクは、根の外を指せば
-/// 根の外のファイルを集め、根の中を指せば同じファイルを 2 つのパスで返す。
+/// シンボリックリンクは辿らない（エントリの種類はリンク自身の種類で見る）。ファイルのリンクは、
+/// 根の外を指せば根の外のファイルを集め、根の中を指せば同じファイルを 2 つのパスで返す。
 ///
-/// Why not（`path.is_dir()` で判定する）: リンクを辿った先の型を返すので、
-/// リンクのディレクトリが `true` になる。`entry.file_type()` はリンク自身の型を返す。
+/// Why not（`path.is_dir()` で降りる先を決める）: リンクの先へ降りるので、親を指すリンクがあると
+/// 同じファイルを深さごとに別のパスで返し、リンク解決の上限で `false` になった深さでエラーなく止まる。
 ///
 /// # Errors
 ///
-/// 根が無い・ディレクトリでない・途中のディレクトリを読めないとき
-/// （[`CodebaseError::DirectoryUnreadable`]）。
+/// 根か途中のディレクトリを読めない・その中身の種類を取れないとき
+/// （[`CodebaseError::DirectoryUnreadable`]）。根の検査は置いていないので、根が無い・
+/// ディレクトリでないときも `directory` に根を入れてこのエラーになる。
 pub fn typescript_paths_of(root: &Path) -> Result<Vec<PathBuf>, CodebaseError> {
     let mut paths = Vec::new();
     let mut pending = vec![root.to_path_buf()];
 
     while let Some(directory) = pending.pop() {
-        for entry in entries_of(&directory)? {
-            let path = entry.path();
-            let file_type =
-                entry
-                    .file_type()
-                    .map_err(|cause| CodebaseError::DirectoryUnreadable {
-                        directory: directory.clone(),
-                        cause,
-                    })?;
-
+        for (path, file_type) in entries_of(&directory)? {
             if file_type.is_dir() {
                 pending.push(path);
                 continue;
@@ -75,8 +69,12 @@ fn has_typescript_extension(path: &Path) -> bool {
         .is_some_and(|extension| TYPESCRIPT_EXTENSIONS.contains(&extension))
 }
 
-/// そのディレクトリの中身。読めなければ、どのディレクトリで失敗したかを持つエラー。
-fn entries_of(directory: &Path) -> Result<Vec<fs::DirEntry>, CodebaseError> {
+/// そのディレクトリの中身の、パスとリンクを辿らない種類の組。
+///
+/// # Errors
+///
+/// ディレクトリを読めない・中身の種類を取れないとき。どのディレクトリで失敗したかを持つ。
+fn entries_of(directory: &Path) -> Result<Vec<(PathBuf, FileType)>, CodebaseError> {
     let unreadable = |cause: io::Error| CodebaseError::DirectoryUnreadable {
         directory: directory.to_path_buf(),
         cause,
@@ -84,7 +82,11 @@ fn entries_of(directory: &Path) -> Result<Vec<fs::DirEntry>, CodebaseError> {
 
     fs::read_dir(directory)
         .map_err(unreadable)?
-        .collect::<Result<Vec<fs::DirEntry>, io::Error>>()
+        .map(|entry| {
+            let entry = entry?;
+            Ok((entry.path(), entry.file_type()?))
+        })
+        .collect::<Result<Vec<(PathBuf, FileType)>, io::Error>>()
         .map_err(unreadable)
 }
 
@@ -92,9 +94,6 @@ fn entries_of(directory: &Path) -> Result<Vec<fs::DirEntry>, CodebaseError> {
 #[derive(Debug)]
 pub enum CodebaseError {
     /// ディレクトリを読めなかった。
-    ///
-    /// 根の検査は置いていないので、根が無い・ディレクトリでないときも `directory` に根を入れて
-    /// このバリアントになる。
     DirectoryUnreadable {
         /// 読めなかったディレクトリ。
         directory: PathBuf,
