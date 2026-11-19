@@ -9,6 +9,8 @@
 
 構想と全体構成は [`docs/tightrope-plan.md`](docs/tightrope-plan.md)。**まだ実装は無く、開発環境だけがある。**
 
+`tightrope report` の MVP 仕様は [レポート仕様書](docs/report/index.md) を参照。
+
 ## 開発
 
 ```bash
