@@ -15,8 +15,8 @@ pub enum Cli {
 #[derive(Debug, Args)]
 pub struct ReportArgs {
     /// 走査の根。
-    // docs/report/cli-spec.md「コマンド」の `<dir>` に揃える。clap 慣習の大文字 `<DIR>` だと
-    // help と仕様の表記が食い違う。
+    // 省くと clap はフィールド名から `<ROOT>` を出し、docs/report/cli-spec.md「コマンド」の
+    // `<dir>` と食い違う。
     #[arg(value_name = "dir")]
     pub(crate) root: PathBuf,
 }
@@ -27,7 +27,7 @@ mod tests {
 
     use super::*;
 
-    const EXIT_CODE_USAGE: i32 = 2;
+    const EXIT_CODE_CANNOT_START: i32 = 2;
 
     #[test]
     fn test_report_with_dir_takes_dir_as_root() {
@@ -41,7 +41,7 @@ mod tests {
         let error =
             Cli::try_parse_from(["tightrope", "report"]).expect_err("<dir> が無ければ解釈できない");
         assert_eq!(error.kind(), ErrorKind::MissingRequiredArgument);
-        assert_eq!(error.exit_code(), EXIT_CODE_USAGE);
+        assert_eq!(error.exit_code(), EXIT_CODE_CANNOT_START);
     }
 
     #[test]
@@ -59,6 +59,6 @@ mod tests {
         let error = Cli::try_parse_from(["tightrope", "report", "a", "b"])
             .expect_err("走査の根は 1 つだけ");
         assert_eq!(error.kind(), ErrorKind::UnknownArgument);
-        assert_eq!(error.exit_code(), EXIT_CODE_USAGE);
+        assert_eq!(error.exit_code(), EXIT_CODE_CANNOT_START);
     }
 }

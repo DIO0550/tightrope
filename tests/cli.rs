@@ -1,6 +1,6 @@
 use std::process::Command;
 
-const EXIT_CODE_USAGE: i32 = 2;
+const EXIT_CODE_CANNOT_START: i32 = 2;
 
 #[test]
 fn test_binary_report_without_dir_exits_with_usage_code() {
@@ -8,5 +8,5 @@ fn test_binary_report_without_dir_exits_with_usage_code() {
         .arg("report")
         .status()
         .expect("tightrope のバイナリを起動できる");
-    assert_eq!(status.code(), Some(EXIT_CODE_USAGE));
+    assert_eq!(status.code(), Some(EXIT_CODE_CANNOT_START));
 }
