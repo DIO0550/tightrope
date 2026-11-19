@@ -2,7 +2,7 @@
 //! 条件は `docs/report/distance-volatility-spec.md`「距離」。
 //!
 //! Why: config・judgement・report・距離の計測という複数の段が使う語彙なので、どの段の下にも置かない。
-//! Why not: 同一ファイル(module がファイル単位なので無い)と別チーム(CODEOWNERS を読む回に足す)の段は置かない。
+//! Why not: 同一ファイル・別チームの段は置かない。理由は同節の箇条。
 
 /// 依存 1 本の距離。近いほど小さい。
 ///
