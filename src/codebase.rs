@@ -30,8 +30,9 @@ const TYPESCRIPT_EXTENSIONS: [&str; 4] = ["ts", "tsx", "mts", "cts"];
 /// 並びはパスの要素順と `/` 区切りの文字列順とで `a-b/x.ts` と `a/x.ts` の前後が逆になるので、
 /// 根からの相対パスへ直すときに一緒に決める。
 ///
-/// シンボリックリンクは辿らない（エントリの種類はリンク自身の種類で見る）。ファイルのリンクは、
-/// 根の外を指せば根の外のファイルを集め、根の中を指せば同じファイルを 2 つのパスで返す。
+/// シンボリックリンクは、ディレクトリのリンクもファイルのリンクも辿らず、返さない（エントリの種類は
+/// リンク自身の種類で見る）。Why: ファイルのリンクまで返すと、根の外を指すものは根の外のファイルを
+/// 根の下のパスで、根の中を指すものは同じファイルを 2 つ目のパスで返すことになる。
 ///
 /// Why not（`path.is_dir()` で降りる先を決める）: リンクの先へ降りるので、親を指すリンクがあると
 /// 同じファイルを深さごとに別のパスで返し、リンク解決の上限で `false` になった深さでエラーなく止まる。
@@ -122,8 +123,6 @@ impl Error for CodebaseError {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeSet;
-
     use super::*;
 
     /// `tests/fixtures/typescript-paths/` 配下のディレクトリ。
@@ -137,20 +136,24 @@ mod tests {
         ))
     }
 
-    /// 根から集めたパス。並びは決めない関数なので、集合にして比べる。
-    fn typescript_path_set_of(root: &Path) -> BTreeSet<PathBuf> {
-        typescript_paths_of(root)
-            .expect("フィクスチャのディレクトリはある")
-            .into_iter()
-            .collect()
+    /// 根の下の TypeScript のファイルのパスを並べ替えたもの。
+    ///
+    /// 並びは決めない関数なので並べ替えて比べる。Why not（集合にして比べる）: 同じパスを
+    /// 2 回返しても 1 件に潰れて通る。
+    fn sorted_typescript_paths_of(root: &Path) -> Vec<PathBuf> {
+        let mut paths = typescript_paths_of(root).expect("フィクスチャのディレクトリはある");
+        paths.sort();
+        paths
     }
 
-    /// 根に相対パスを付けた集合。
-    fn path_set_under(root: &Path, relative_paths: &[&str]) -> BTreeSet<PathBuf> {
-        relative_paths
+    /// 根に相対パスを付けたパスを並べ替えたもの。
+    fn sorted_paths_under(root: &Path, relative_paths: &[&str]) -> Vec<PathBuf> {
+        let mut paths: Vec<PathBuf> = relative_paths
             .iter()
             .map(|relative_path| root.join(relative_path))
-            .collect()
+            .collect();
+        paths.sort();
+        paths
     }
 
     #[test]
@@ -158,11 +161,11 @@ mod tests {
         // 対照は同じディレクトリの `script.js` / `data.json`
         let root = fixture("extensions");
 
-        let paths = typescript_path_set_of(&root);
+        let paths = sorted_typescript_paths_of(&root);
 
         assert_eq!(
             paths,
-            path_set_under(&root, &["a.ts", "b.tsx", "c.mts", "d.cts", "e.d.ts"])
+            sorted_paths_under(&root, &["a.ts", "b.tsx", "c.mts", "d.cts", "e.d.ts"])
         );
     }
 
@@ -170,20 +173,20 @@ mod tests {
     fn test_typescript_paths_of_nested_directories_returns_a_file_two_levels_down() {
         let root = fixture("nested");
 
-        let paths = typescript_path_set_of(&root);
+        let paths = sorted_typescript_paths_of(&root);
 
-        assert_eq!(paths, path_set_under(&root, &["a/b/deep.ts"]));
+        assert_eq!(paths, sorted_paths_under(&root, &["a/b/deep.ts"]));
     }
 
     #[test]
     fn test_typescript_paths_of_a_directory_named_like_a_typescript_file_returns_its_contents_only()
     {
-        // `x.ts` はディレクトリ。拡張子だけで判定するとディレクトリ自身が返る
+        // `x.ts` はディレクトリ。ディレクトリかどうかより先に拡張子で見ると、ディレクトリ自身が返る
         let root = fixture("directory-named-like-a-file");
 
-        let paths = typescript_path_set_of(&root);
+        let paths = sorted_typescript_paths_of(&root);
 
-        assert_eq!(paths, path_set_under(&root, &["x.ts/inner.ts"]));
+        assert_eq!(paths, sorted_paths_under(&root, &["x.ts/inner.ts"]));
     }
 
     #[test]
@@ -191,9 +194,9 @@ mod tests {
         // 対照はリンク先の実体 `real/`。リンクを辿ると `linked/x.ts` でも同じファイルが返る
         let root = fixture("symlinked-directory");
 
-        let paths = typescript_path_set_of(&root);
+        let paths = sorted_typescript_paths_of(&root);
 
-        assert_eq!(paths, path_set_under(&root, &["real/x.ts"]));
+        assert_eq!(paths, sorted_paths_under(&root, &["real/x.ts"]));
     }
 
     #[test]
@@ -201,9 +204,9 @@ mod tests {
         // 対照はリンク先の実体 `real.ts`。リンクを返すと同じファイルが `alias.ts` でも返る
         let root = fixture("symlinked-file");
 
-        let paths = typescript_path_set_of(&root);
+        let paths = sorted_typescript_paths_of(&root);
 
-        assert_eq!(paths, path_set_under(&root, &["real.ts"]));
+        assert_eq!(paths, sorted_paths_under(&root, &["real.ts"]));
     }
 
     #[test]
@@ -214,6 +217,18 @@ mod tests {
 
         let Err(CodebaseError::DirectoryUnreadable { directory, .. }) = result else {
             panic!("存在しない根は DirectoryUnreadable になる");
+        };
+        assert_eq!(directory, root, "受け取った根をそのまま持つ");
+    }
+
+    #[test]
+    fn test_typescript_paths_of_a_file_as_the_root_reports_the_root_as_unreadable() {
+        let root = fixture("extensions/a.ts");
+
+        let result = typescript_paths_of(&root);
+
+        let Err(CodebaseError::DirectoryUnreadable { directory, .. }) = result else {
+            panic!("ディレクトリでない根は DirectoryUnreadable になる");
         };
         assert_eq!(directory, root, "受け取った根をそのまま持つ");
     }
