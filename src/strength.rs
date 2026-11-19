@@ -5,8 +5,10 @@
 
 /// 統合強度。相手のどこまでを知って使っているかの度合い。
 ///
+/// 比べると強いほど大きい（`Intrusive > Functional > Model > Contract`）。
+///
 /// どの強度になるかの決め方は `docs/report/strength-spec.md`「強度の段」にある。
-// derive(Ord) は宣言順で比べるので、弱い順に宣言して強いほど大きくする（強い順に並べ替えない）。
+// derive(Ord) は宣言順で比べるので、弱い順に宣言する（強い順に並べ替えない）。
 // 強い順に宣言して Ord を手で書く案は、順序の情報が宣言と Ord 実装の 2 か所に分かれるので採らない。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Strength {
