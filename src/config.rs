@@ -13,7 +13,7 @@ const THRESHOLDS_TABLE: &str = "thresholds";
 /// `[thresholds]` の 4 キーそれぞれについて、書かれていたかどうかと書かれていた値。
 ///
 /// `None` は書かれていないこと、`Some` は書かれていた値を解釈せずに持つ。
-/// 既定値はここでは持たない。
+/// 既定値はここでは持たない。値を `toml::Value` のまま持つのは、値の型付けを後段で決めるまでの暫定の形。
 #[derive(Debug, PartialEq)]
 pub struct WrittenThresholds {
     pub strong_from: Option<toml::Value>,
@@ -25,24 +25,29 @@ pub struct WrittenThresholds {
 impl WrittenThresholds {
     /// `tightrope.toml` の中身を解釈し、`[thresholds]` に書かれていたキーを拾う。
     ///
-    /// `text` は [`config_text_of`] が返した中身で、`None` はファイルが無いことを表す。
+    /// `config_text` は [`config_text_of`] が返した中身で、`None` はファイルが無いことを表す。
     /// ファイルが無い・空・`[thresholds]` が無いときは、4 キーとも書かれていないとして返す。
-    /// 知らないキーと、`thresholds` がテーブルでない形はまだ見ず、書かれていないとして扱う。
+    ///
+    /// 知らないキーと、`thresholds` がテーブルでない形は書かれていないとして扱う。仕様
+    /// (`docs/report/cli-spec.md`)はこれらをエラーにして止めるので逆向きだが、まだ CLI に
+    /// つながっておらず利用者には見えない。この扱いを守るテストは無い。
     ///
     /// # Errors
     ///
-    /// `text` が TOML として読めないときに `Err` を返す。
-    pub fn from_config_text(text: Option<&str>) -> Result<Self, toml::de::Error> {
-        let table = match text {
-            Some(text) => text.parse::<toml::Table>()?,
+    /// `config_text` が TOML として読めないときに `Err` を返す。
+    pub fn from_config_text(config_text: Option<&str>) -> Result<Self, toml::de::Error> {
+        let table = match config_text {
+            Some(config_text) => config_text.parse::<toml::Table>()?,
             None => toml::Table::new(),
         };
+
         let thresholds = table.get(THRESHOLDS_TABLE).and_then(toml::Value::as_table);
         let written = |key: &str| {
             thresholds
                 .and_then(|thresholds| thresholds.get(key))
                 .cloned()
         };
+
         Ok(Self {
             strong_from: written("strong_from"),
             far_from: written("far_from"),
@@ -57,7 +62,8 @@ impl WrittenThresholds {
 /// `root` は存在するディレクトリであることを前提にする。根が無くてもファイルが無いときと
 /// 同じ `NotFound` になり、設定が無いことと区別できないため。
 ///
-/// ファイルが無いときは `Ok(None)` を返す。
+/// ファイルが無いときは `Ok(None)` を返す。シンボリックリンクは辿って読み、リンク先が無い
+/// 壊れたリンクも `NotFound` になるので無いとして扱う。
 ///
 /// # Errors
 ///
@@ -88,6 +94,7 @@ mod tests {
         let text =
             config_text_of(&fixture("absent")).expect("absent config should not be an error");
         assert_eq!(text, None);
+
         let written = WrittenThresholds::from_config_text(text.as_deref())
             .expect("absent config should be interpretable");
         assert_eq!(
@@ -105,6 +112,7 @@ mod tests {
     fn test_config_text_of_empty_file_reads_no_keys_written() {
         let text = config_text_of(&fixture("empty")).expect("empty config should be readable");
         assert_eq!(text.as_deref(), Some(""));
+
         let written = WrittenThresholds::from_config_text(text.as_deref())
             .expect("empty config should be interpretable");
         assert_eq!(
@@ -127,6 +135,7 @@ mod tests {
     #[test]
     fn test_config_text_of_written_key_is_read_as_written() {
         let text = config_text_of(&fixture("written")).expect("written config should be readable");
+
         let written = WrittenThresholds::from_config_text(text.as_deref())
             .expect("written config should be interpretable");
         assert_eq!(

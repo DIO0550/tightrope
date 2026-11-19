@@ -10,6 +10,7 @@ license = "MIT"
 # 依存を足すときは素の `cargo add` ではなく harness/deps/resolve.sh を通す
 # (AGENTS.md「依存の更新は cooldown を通す」)。
 [dependencies]
+# features は既定のまま。絞っても外れるのは build script も proc macro も持たない toml_writer だけで、`toml::Table` の `FromStr` は `serde` feature の下にあり serde_core は外せない。
 toml = "1.2.0"
 
 # 本番コードでの unwrap / expect の禁止は、規約の文ではなくツールで落とす。
