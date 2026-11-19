@@ -30,8 +30,10 @@ const TYPESCRIPT_EXTENSIONS: [&str; 4] = ["ts", "tsx", "mts", "cts"];
 /// 並びはパスの要素順と `/` 区切りの文字列順とで `a-b/x.ts` と `a/x.ts` の前後が逆になるので、
 /// 根からの相対パスへ直すときに一緒に決める。
 ///
-/// シンボリックリンクは、ディレクトリのリンクもファイルのリンクも辿らず、返さない（エントリの種類は
-/// リンク自身の種類で見る）。Why: ファイルのリンクまで返すと、根の外を指すものは根の外のファイルを
+/// 走査の途中で見つけたシンボリックリンクは、ディレクトリのリンクもファイルのリンクも辿らず、返さない
+/// （エントリの種類はリンク自身の種類で見る）。`root` そのものがディレクトリへのリンクなら、それは
+/// 解決してリンク先の中身を走査し、返すパスはリンクのパスを前に付けた形になる。
+/// Why: ファイルのリンクまで返すと、根の外を指すものは根の外のファイルを
 /// 根の下のパスで、根の中を指すものは同じファイルを 2 つ目のパスで返すことになる。
 ///
 /// Why not（`path.is_dir()` で降りる先を決める）: リンクの先へ降りるので、親を指すリンクがあると
@@ -156,6 +158,19 @@ mod tests {
         paths
     }
 
+    /// フィクスチャのそのパスがシンボリックリンクであることを表明する。
+    ///
+    /// Why: `core.symlinks=false` で展開するとリンクが通常ファイルになり、ディレクトリ側のテストは
+    /// リンクの分岐を通らずに通り、ファイル側のテストは理由の出ない比較で落ちる。
+    fn assert_is_symlink(path: &Path) {
+        let metadata = fs::symlink_metadata(path).expect("フィクスチャのリンクはある");
+        assert!(
+            metadata.file_type().is_symlink(),
+            "フィクスチャがリンクとして展開されていない（core.symlinks を確かめる）: {}",
+            path.display()
+        );
+    }
+
     #[test]
     fn test_typescript_paths_of_a_directory_with_js_and_json_returns_only_typescript_files() {
         // 対照は同じディレクトリの `script.js` / `data.json`
@@ -193,6 +208,7 @@ mod tests {
     fn test_typescript_paths_of_a_symlinked_directory_does_not_walk_into_it() {
         // 対照はリンク先の実体 `real/`。リンクを辿ると `linked/x.ts` でも同じファイルが返る
         let root = fixture("symlinked-directory");
+        assert_is_symlink(&root.join("linked"));
 
         let paths = sorted_typescript_paths_of(&root);
 
@@ -203,6 +219,7 @@ mod tests {
     fn test_typescript_paths_of_a_symlinked_file_leaves_it_out() {
         // 対照はリンク先の実体 `real.ts`。リンクを返すと同じファイルが `alias.ts` でも返る
         let root = fixture("symlinked-file");
+        assert_is_symlink(&root.join("alias.ts"));
 
         let paths = sorted_typescript_paths_of(&root);
 
