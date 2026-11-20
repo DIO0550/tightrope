@@ -15,8 +15,6 @@ pub enum Cli {
 #[derive(Debug, Args)]
 pub struct ReportArgs {
     /// 走査の根。
-    // 省くと clap はフィールド名から `<ROOT>` を出し、docs/report/cli-spec.md「コマンド」の
-    // `<dir>` と食い違う。
     #[arg(value_name = "dir")]
     pub(crate) root: PathBuf,
 }
