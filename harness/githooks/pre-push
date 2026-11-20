@@ -49,6 +49,7 @@ run_check "マージ後の振り返りの促しのテスト" bash .claude/hooks/
 run_check "PR が閉じる Issue の検査の判定表" bash .github/scripts/check-pr-closing-issue-cases.sh
 run_check "同じ Issue を閉じる他の PR の検査の判定表" bash .github/scripts/check-duplicate-issue-pr-cases.sh
 run_check "sticky コメントの投稿・差し替えの判定表" bash .github/scripts/upsert-sticky-comment-cases.sh
+run_check "道具の cooldown の判定表" bash harness/deps/tool-cooldown-cases.sh
 resume_checks
 
 # 編集後の fmt / clippy フックのテストは使い捨てのクレートを作るので、cargo と jq の両方が要る。

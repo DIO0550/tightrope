@@ -1,4 +1,4 @@
-# 差分の行の変異（cargo-mutants）
+# 差分の行の変異（ミューテーション、cargo-mutants）
 
 ## 何が走るか
 
@@ -7,10 +7,12 @@ PR ごとに CI の `Mutants` ワークフローが走る。中身と、そう�
 
 ## 手元での走らせ方
 
-版は `mutants.yml` の `CARGO_MUTANTS_VERSION` から読む。
+版は `mutants.yml` の `MUTANTS_INSTALL_VERSION` から読み、入れる前に道具の cooldown を通す
+（[`harness/deps/README.md`](../deps/README.md)「道具の cooldown」）。
 
 ```bash
-cargo install cargo-mutants --locked --version "$(sed -n 's/^ *CARGO_MUTANTS_VERSION: "\(.*\)"$/\1/p' .github/workflows/mutants.yml)"
+version="$(sed -n 's/^ *MUTANTS_INSTALL_VERSION: "\(.*\)"$/\1/p' .github/workflows/mutants.yml)"
+bash harness/deps/tool-cooldown.sh cargo-mutants "$version" && cargo install cargo-mutants --locked --version "$version"
 git add -N <新しく足したファイル>
 git diff "$(git merge-base origin/main HEAD)" > "${TMPDIR:-/tmp}/pr.diff"
 cargo mutants --in-diff "${TMPDIR:-/tmp}/pr.diff"
@@ -22,22 +24,16 @@ cargo mutants --in-diff "${TMPDIR:-/tmp}/pr.diff"
 ## 結果の読み方
 
 生き残った変異は `mutants.out/missed.txt`、タイムアウトは `mutants.out/timeout.txt` に 1 行ずつ出る
-（変異ごとの差分とログは `mutants.out/diff/` と `mutants.out/logs/`）。CI ではアーティファクト
-`mutants-out` から取れる。
+（変異ごとの差分とログは `mutants.out/diff/` と `mutants.out/log/`）。CI ではアーティファクト
+`mutants-out` から取れる。Rust を変えない差分では `mutants.out` が作られず、生き残り無しとして読む。
 
-このジョブで効く終了コード:
+**合否は `missed.txt` が空かどうかで決める。** タイムアウトだけなら通す（変異が無限ループなどを
+起こし、テストがタイムアウトで止めている = 捕まえている）。
 
-| 終了コード | 意味 |
-| --- | --- |
-| 2 | テストで落ちない変異が残った |
-| 3 | 変異を入れたテストがタイムアウトした |
-| 4 | 変異を入れる前の木でテストが落ちた |
-
-## pre-push に入れない理由
-
-- CI の harness ジョブは `PRE_PUSH_REQUIRE_ALL=1` で pre-push を走らせるので、入れると CI で
-  cargo-mutants の導入が `Mutants` と合わせて 2 回になる
-- 新しいブランチの初回 push では、pre-push が受け取る相手側の sha が 0 埋めで、差分の基点が決まらない
+終了コードは `missed.txt` の照合の後に見て、0（すべて捕まえた）と 3（タイムアウトがあった）以外なら落ちる。
+代表は 4（変異を入れる前の木でテストが落ちた）と 5（差分と木が食い違う）。
+生き残りとタイムアウトが両方あると、終了コードは 2（生き残り）ではなく 3 になる。
+終了コードを合否に使わないのはこのため。
 
 ## 生き残りを意図して許すとき
 
@@ -53,6 +49,7 @@ exclude_re = [
 
 ## 版の上げ方
 
-`mutants.yml` の `CARGO_MUTANTS_VERSION` を書き換える。上げる先は、公開から
-`.cargo/config.toml` の `global-min-publish-age` の期間が経った版にする（日数はここへ写さない）。
-足りているかは CI の「道具の cooldown」のステップが確かめ、足りなければ落ちる。
+`mutants.yml` の `MUTANTS_INSTALL_VERSION` を書き換える。上げる先は、公開から
+`.cargo/config.toml` の `global-min-publish-age` の期間が経っていて、`.crate` に `Cargo.lock` を
+同梱している版にする（日数はここへ写さない）。期間が足りているかは CI の「道具の cooldown」の
+ステップ（`harness/deps/tool-cooldown.sh`）が確かめ、足りなければ落ちる。
