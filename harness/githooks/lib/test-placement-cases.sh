@@ -49,6 +49,8 @@ report deny "$(verdict_of nested a/b.rs "$inline_tests")" \
   "下の階層の実装のファイルにあるテストも落とす"
 report deny "$(verdict_of suffix-only a/contests.rs "$test_fn")" \
   "名前が tests.rs で終わるだけのファイルは置き場所に数えない"
+report deny "$(verdict_of suffix-only-dir a/contests/x.rs "$test_fn")" \
+  "名前が tests で終わるだけのディレクトリは置き場所に数えない"
 report pass "$(verdict_of split a.rs "$out_of_line" a/tests.rs "$test_fn")" \
   "mod tests; と a/tests.rs に分けたテストは通す"
 report pass "$(verdict_of crate-root lib.rs "$out_of_line" tests.rs "$test_fn")" \
