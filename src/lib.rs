@@ -2,3 +2,4 @@
 //! (rules/architecture.md「lib と bin を分ける」)。
 
 pub mod config;
+pub mod strength;
