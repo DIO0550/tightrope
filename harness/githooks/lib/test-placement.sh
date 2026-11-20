@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+#
+# 単体テストが実装と同じファイルに書かれていないかの検査
+# (`rules/testing.md`「段をまたぐテストと単体のテストを分ける」)。
+#
+# 使い方: bash harness/githooks/lib/test-placement.sh [<根>]   (<根> の既定は src)
+# 置き場所を外れたテストを見出しの下に `<ファイル>:<行>: <行の中身>` で並べて exit 1。
+# 無ければ何も出さずに exit 0。<根> がディレクトリでない・走査に失敗したときは exit 2。
+#
+# テストを置いてよい場所を許可リスト(名前がちょうど `tests.rs` のファイルと、`tests/` の下)で書く。
+# 一覧に無い置き場所は「外れた」側へ倒れるので、漏れは見落としではなく誤検知になる。
+#
+# 拾うのは、行頭(字下げは除く)のテストの属性(`#[test]` / `#[tokio::test]` のような道のついたもの /
+# `#[cfg_attr(test, test)]`)と、`#[cfg(test)]` の直後に中身ごと書いたモジュール(`mod x {`)。
+# 行頭に限るのは、doc コメントの例や文字列の中の `#[test]` を拾わないため。
+
+set -uo pipefail
+
+root="${1:-src}"
+if [ ! -d "$root" ]; then
+  printf 'test-placement: %s はディレクトリではありません\n' "$root" >&2
+  exit 2
+fi
+
+# <根> からの相対パスで見る。絶対パスのまま見ると、<根> の上に `tests/` があるだけで全部が許される。
+# `#[cfg(test)]` の後の空行・コメント・他の属性は読み飛ばし、それ以外の行が来たら直前の `#[cfg(test)]` を忘れる。
+misplaced="$(cd "$root" && find . -type f -name '*.rs' -exec awk -v root="${root%/}" '
+  FNR == 1 {
+    cfg_test = 0
+    path = FILENAME
+    sub(/^\.\//, "", path)
+    allowed = (path ~ /(^|\/)tests\.rs$/ || path ~ /(^|\/)tests\//)
+  }
+  allowed { next }
+  /^[[:space:]]*#\[(cfg_attr\(test,[[:space:]]*)?([[:alnum:]_]+::)*test\)?\]/ {
+    print root "/" path ":" FNR ": " $0
+    cfg_test = 0
+    next
+  }
+  /^[[:space:]]*#\[cfg\(test\)\][[:space:]]*$/ { cfg_test = 1; next }
+  cfg_test && /^[[:space:]]*(pub(\([^)]*\))?[[:space:]]+)?mod[[:space:]]+[[:alnum:]_]+[[:space:]]*\{/ {
+    print root "/" path ":" FNR ": " $0
+    cfg_test = 0
+    next
+  }
+  /^[[:space:]]*(#\[|\/\/|$)/ { next }
+  { cfg_test = 0 }
+' {} +)"
+scan_status=$?
+
+if [ "$scan_status" -ne 0 ]; then
+  printf 'test-placement: %s の走査に失敗しました(終了コード %s)\n' "$root" "$scan_status" >&2
+  exit 2
+fi
+
+if [ -z "$misplaced" ]; then
+  exit 0
+fi
+
+printf 'テストが実装と同じファイルにあります(%s の下)。`<名前>.rs` には `#[cfg(test)] mod tests;` だけを置き、テストは `tests.rs` へ移してください:\n' "$root"
+printf '%s\n' "$misplaced"
+exit 1
