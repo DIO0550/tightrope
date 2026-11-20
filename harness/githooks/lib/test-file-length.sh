@@ -12,7 +12,7 @@
 
 set -uo pipefail
 
-here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+here="$(CDPATH= cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$here/test-file-path.sh" || exit 2
 
 # 1 つのテストの観点を読み切れる量。テストの観点の数そのものはレビューが見る。

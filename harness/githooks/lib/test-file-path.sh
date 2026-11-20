@@ -26,11 +26,12 @@ function is_test_file_path(path) {
 #
 # Why(<根> へ移ってから相対パスで探す): 絶対パスで見ると、<根> の上に `tests/` があるだけで根の中の全部が
 # テストのファイルになる。
+# Why(`CDPATH=` で cd する): CDPATH が設定されていると、相対パスの cd が移動先を標準出力へ書き、走査の結果に混ざる。
 #
 # $1 <根>
 # $2 以降 awk へ渡す引数(`-v` とプログラム)
 awk_rs_files_under() {
   local root="$1"
   shift
-  (cd "$root" && find . -type f -name '*.rs' -exec awk "$@" {} +)
+  (CDPATH= cd -- "$root" && find . -type f -name '*.rs' -exec awk "$@" {} +)
 }

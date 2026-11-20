@@ -3,13 +3,15 @@
 # テストの置き場所の検査(`test-placement.sh`)の判定表。
 #
 # ケースごとに使い捨ての根を作ってファイルを置き、検査の終了コードと見出しから pass / deny を読む。
+# 検査できなかったケースは、終了コードを 2 と比べる(`decide` は見出しの無い exit 1 も broken と読むので、
+# exit 2 が 1 に退行しても ok に残る)。
 #
 # 使い方: bash harness/githooks/lib/test-placement-cases.sh
 # 食い違ったケースがあれば exit 1(`ok` だけなら期待どおり)。
 
 set -uo pipefail
 
-here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+here="$(CDPATH= cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 detector="$here/test-placement.sh"
 work="$(mktemp -d)" || exit 1
 trap 'rm -rf "$work"' EXIT
@@ -72,30 +74,40 @@ report pass "$(verdict_of in-string a.rs $'pub const S: &str = "#[test] mod test
 report pass "$(verdict_of cfg-test-then-code a.rs $'#[cfg(test)]\nuse std::fmt;\n\nmod real {\n    pub fn f() {}\n}\n')" \
   "#[cfg(test)] が別の項目に掛かった後のモジュールは拾わない"
 
+# CDPATH が設定された環境。pre-push と同じく、検査と <根> を相対パスで渡す。
+mkdir -p "$work/cdpath/harness/githooks/lib" "$work/cdpath/src/a"
+cp "$detector" "$here/test-file-path.sh" "$work/cdpath/harness/githooks/lib/"
+printf '%s' "$out_of_line" >"$work/cdpath/src/a.rs"
+printf '%s' "$test_fn" >"$work/cdpath/src/a/tests.rs"
+cdpath_output="$(cd "$work/cdpath" && CDPATH=. bash harness/githooks/lib/test-placement.sh src)"
+cdpath_status=$?
+report pass "$(decide "$cdpath_output" "$cdpath_status" "$heading")" \
+  "CDPATH が設定されていても、置き場所を外れたテストが無い根は通す"
+
 # 走査そのものの失敗。
 mkdir -p "$work/scan-fails"
 printf 'pub fn f() {}\n' >"$work/scan-fails/a.rs"
-scan_output="$(PATH="$(failing_awk_path_prefix "$work")$PATH" bash "$detector" "$work/scan-fails" 2>/dev/null)"
+PATH="$(failing_awk_path_prefix "$work")$PATH" bash "$detector" "$work/scan-fails" >/dev/null 2>&1
 scan_status=$?
-report broken "$(decide "$scan_output" "$scan_status" "$heading")" \
-  "走査に失敗したら exit 2(違反なしの pass と読まない)"
+report "exit 2" "exit $scan_status" \
+  "走査に失敗したら exit 2(違反なしの pass とも、exit 1 とも読まない)"
 
 # 根そのものが `.../tests` の形。絶対パスで見ると a.rs が許されてしまう。
 report deny "$(verdict_of rooted-in-tests/tests a.rs "$inline_tests")" \
   "根が tests/ の下にあっても、根の中の実装のファイルにあるテストは落とす"
 
-missing_output="$(bash "$detector" "$work/missing" 2>/dev/null)"
+bash "$detector" "$work/missing" >/dev/null 2>&1
 missing_status=$?
-report broken "$(decide "$missing_output" "$missing_status" "$heading")" \
-  "根が無ければ exit 2(pass と読まない)"
+report "exit 2" "exit $missing_status" \
+  "根が無ければ exit 2(pass とも、違反を並べた exit 1 とも読まない)"
 
 # 共有の一覧が読めないとき。検査だけを使い捨ての場所へ写すと、隣に test-file-path.sh が無い。
 mkdir -p "$work/detector-alone" "$work/unshared"
 cp "$detector" "$work/detector-alone/"
 printf '%s' "$inline_tests" >"$work/unshared/a.rs"
-unshared_output="$(bash "$work/detector-alone/test-placement.sh" "$work/unshared" 2>/dev/null)"
+bash "$work/detector-alone/test-placement.sh" "$work/unshared" >/dev/null 2>&1
 unshared_status=$?
-report broken "$(decide "$unshared_output" "$unshared_status" "$heading")" \
-  "共有の test-file-path.sh が読めなければ exit 2(違反なしの pass と読まない)"
+report "exit 2" "exit $unshared_status" \
+  "共有の test-file-path.sh が読めなければ exit 2(違反なしの pass とも、exit 1 とも読まない)"
 
 exit "$cases_failed"

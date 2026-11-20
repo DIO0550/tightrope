@@ -5,13 +5,15 @@
 # ケースごとに使い捨ての根を作ってファイルを置き、検査の終了コードと見出しから pass / deny / broken を読む。
 # deny のときは並んだ行の集合まで期待と完全一致で比べる(どのファイルを何行と数えたかまで見ないと、
 # 測る場所や数え方を壊しても、対照の 1 件で落ちたまま ok に残る)。
+# 検査できなかったケースは、終了コードを 2 と比べる(`decide` は見出しの無い exit 1 も broken と読むので、
+# exit 2 が 1 に退行しても ok に残る)。
 #
 # 使い方: bash harness/githooks/lib/test-file-length-cases.sh
 # 食い違ったケースがあれば exit 1(`ok` だけなら期待どおり)。
 
 set -uo pipefail
 
-here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+here="$(CDPATH= cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 detector="$here/test-file-length.sh"
 work="$(mktemp -d)" || exit 1
 trap 'rm -rf "$work"' EXIT
@@ -60,7 +62,12 @@ verdict_of() {
     echo "$verdict"
     return 0
   fi
-  printf 'deny %s\n' "$(printf '%s\n' "$output" | grep -vE "$heading" | sed "s|^$root/||" | paste -sd ',' -)"
+  # Why not(sed で `<根>/` を消す): sed は根を正規表現として読み、一時ディレクトリに `[` などがあると除けない。
+  local line listed=()
+  while IFS= read -r line; do
+    listed+=("${line#"$root/"}")
+  done < <(printf '%s\n' "$output" | grep -vE "$heading")
+  printf 'deny %s\n' "$(printf '%s\n' "${listed[@]}" | paste -sd ',' -)"
 }
 
 report "deny a/tests.rs: 101 行" "$(verdict_of tests-rs a/tests.rs 101)" \
@@ -94,26 +101,35 @@ report pass "$(verdict_of no-tests a.rs 300)" \
 report "deny a/b/tests.rs: 120 行,a/tests.rs: 101 行" "$(verdict_of two a/tests.rs 101 a/b/tests.rs 120)" \
   "上限を超えたファイルが 2 つあれば 2 つとも並べる"
 
-missing_output="$(bash "$detector" "$work/missing" 2>/dev/null)"
+# CDPATH が設定された環境。pre-push と同じく、検査と <根> を相対パスで渡す。
+mkdir -p "$work/cdpath/harness/githooks/lib" "$work/cdpath/src/a"
+cp "$detector" "$here/test-file-path.sh" "$work/cdpath/harness/githooks/lib/"
+write_lines "$work/cdpath/src/a/tests.rs" 1
+cdpath_output="$(cd "$work/cdpath" && CDPATH=. bash harness/githooks/lib/test-file-length.sh src)"
+cdpath_status=$?
+report pass "$(decide "$cdpath_output" "$cdpath_status" "$heading")" \
+  "CDPATH が設定されていても、上限を超えたものが無い根は通す"
+
+bash "$detector" "$work/missing" >/dev/null 2>&1
 missing_status=$?
-report broken "$(decide "$missing_output" "$missing_status" "$heading")" \
-  "根が無ければ exit 2(pass と読まない)"
+report "exit 2" "exit $missing_status" \
+  "根が無ければ exit 2(pass とも、違反を並べた exit 1 とも読まない)"
 
 # 走査そのものの失敗。
 mkdir -p "$work/scan-fails/a"
 write_lines "$work/scan-fails/a/tests.rs" 1
-scan_output="$(PATH="$(failing_awk_path_prefix "$work")$PATH" bash "$detector" "$work/scan-fails" 2>/dev/null)"
+PATH="$(failing_awk_path_prefix "$work")$PATH" bash "$detector" "$work/scan-fails" >/dev/null 2>&1
 scan_status=$?
-report broken "$(decide "$scan_output" "$scan_status" "$heading")" \
-  "走査に失敗したら exit 2(上限を超えたものが無い pass と読まない)"
+report "exit 2" "exit $scan_status" \
+  "走査に失敗したら exit 2(上限を超えたものが無い pass とも、exit 1 とも読まない)"
 
 # 共有の一覧が読めないとき。検査だけを使い捨ての場所へ写すと、隣に test-file-path.sh が無い。
 mkdir -p "$work/detector-alone" "$work/unshared/a"
 cp "$detector" "$work/detector-alone/"
 write_lines "$work/unshared/a/tests.rs" 101
-unshared_output="$(bash "$work/detector-alone/test-file-length.sh" "$work/unshared" 2>/dev/null)"
+bash "$work/detector-alone/test-file-length.sh" "$work/unshared" >/dev/null 2>&1
 unshared_status=$?
-report broken "$(decide "$unshared_output" "$unshared_status" "$heading")" \
-  "共有の test-file-path.sh が読めなければ exit 2(一覧が空の pass と読まない)"
+report "exit 2" "exit $unshared_status" \
+  "共有の test-file-path.sh が読めなければ exit 2(一覧が空の pass とも、exit 1 とも読まない)"
 
 exit "$cases_failed"
