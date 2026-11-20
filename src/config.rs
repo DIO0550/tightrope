@@ -12,8 +12,8 @@ const THRESHOLDS_TABLE: &str = "thresholds";
 
 /// `[thresholds]` の 4 キーそれぞれについて、書かれていたかどうかと書かれていた値。
 ///
-/// `None` は書かれていないこと、`Some` は書かれていた値を解釈せずに持つ。
-/// 既定値はここでは持たない。値を `toml::Value` のまま持つのは、値の型付けを後段で決めるまでの暫定の形。
+/// `None` は書かれていないこと、`Some` は書かれていた値を解釈せずに `toml::Value` のまま持つ。
+/// 既定値は持たない。
 #[derive(Debug, PartialEq)]
 pub struct WrittenThresholds {
     pub strong_from: Option<toml::Value>,
@@ -28,9 +28,8 @@ impl WrittenThresholds {
     /// `config_text` は [`config_text_of`] が返した中身で、`None` はファイルが無いことを表す。
     /// ファイルが無い・空・`[thresholds]` が無いときは、4 キーとも書かれていないとして返す。
     ///
-    /// 知らないキーと、`thresholds` がテーブルでない形は書かれていないとして扱う。仕様
-    /// (`docs/report/cli-spec.md`)はこれらをエラーにして止めるので逆向きだが、まだ CLI に
-    /// つながっておらず利用者には見えない。この扱いを守るテストは無い。
+    /// 知らないキーと、`thresholds` がテーブルでない形は、書かれていないとして扱う
+    /// (`docs/report/cli-spec.md` はこれらをエラーにするので、仕様とは扱いが違う)。
     ///
     /// # Errors
     ///
@@ -59,8 +58,8 @@ impl WrittenThresholds {
 
 /// 走査の根 `root` に置かれた `tightrope.toml` の中身を読む。
 ///
-/// `root` は存在するディレクトリであることを前提にする。根が無くてもファイルが無いときと
-/// 同じ `NotFound` になり、設定が無いことと区別できないため。
+/// `root` は存在するディレクトリであること。根が無いときも、ファイルが無いときと同じ
+/// `Ok(None)` になる。
 ///
 /// ファイルが無いときは `Ok(None)` を返す。シンボリックリンクは辿って読み、リンク先が無い
 /// 壊れたリンクも `NotFound` になるので無いとして扱う。
@@ -71,8 +70,6 @@ impl WrittenThresholds {
 pub fn config_text_of(root: &Path) -> io::Result<Option<String>> {
     match fs::read_to_string(root.join(CONFIG_FILE_NAME)) {
         Ok(text) => Ok(Some(text)),
-        // 置かないのは仕様上「何も書かれていない」なので `None` にする。NotFound 以外は
-        // 書いたのに読めなかった設定なので、無いとして既定値へ流さずに返す。
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
         Err(error) => Err(error),
     }
