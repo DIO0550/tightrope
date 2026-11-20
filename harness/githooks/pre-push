@@ -33,6 +33,10 @@ run_check "集計の判定表" bash harness/records/count-cases.sh
 run_check "テストの置き場所" bash harness/githooks/lib/test-placement.sh src
 run_check "テストの置き場所の判定表" bash harness/githooks/lib/test-placement-cases.sh
 
+# コメントの形(rules/coding.md「コメントは doc だけにする」)と、その判定表。
+run_check "コメントの形" bash harness/githooks/lib/comment-style.sh
+run_check "コメントの形の判定表" bash harness/githooks/lib/comment-style-cases.sh
+
 # 層 3 のフックの判定表とテスト。フックそのものは CI では発火しないが、判定が壊れたことには
 # ここと CI でしか気づけない。どれも bash だけで走るので飛ばさない。
 run_check "作業ツリーを書き換えるサブエージェントの実行中フラグの判定表" bash .claude/hooks/lib/verification-agent-cases.sh
