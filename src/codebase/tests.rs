@@ -1,9 +1,6 @@
 use super::*;
 
-/// `tests/fixtures/typescript-paths/` 配下のディレクトリ。
-///
-/// カレントディレクトリではなくマニフェストの位置から組み立てる
-/// （テストの実行位置に依存させない）。
+/// `tests/fixtures/typescript-paths/` 配下のディレクトリ。マニフェストの位置から組み立てる。
 fn fixture(relative_path: &str) -> PathBuf {
     PathBuf::from(format!(
         "{}/tests/fixtures/typescript-paths/{relative_path}",
@@ -12,9 +9,6 @@ fn fixture(relative_path: &str) -> PathBuf {
 }
 
 /// 根の下の TypeScript のファイルのパスを並べ替えたもの。
-///
-/// 並びは決めない関数なので並べ替えて比べる。Why not（集合にして比べる）: 同じパスを
-/// 2 回返しても 1 件に潰れて通る。
 fn sorted_typescript_paths_of(root: &Path) -> Vec<PathBuf> {
     let mut paths = typescript_paths_of(root).expect("フィクスチャのディレクトリはある");
     paths.sort();
@@ -32,9 +26,6 @@ fn sorted_paths_under(root: &Path, relative_paths: &[&str]) -> Vec<PathBuf> {
 }
 
 /// フィクスチャのそのパスがシンボリックリンクであることを表明する。
-///
-/// Why: `core.symlinks=false` で展開するとリンクが通常ファイルになり、ディレクトリ側のテストは
-/// リンクの分岐を通らずに通り、ファイル側のテストは理由の出ない比較で落ちる。
 fn assert_is_symlink(path: &Path) {
     let metadata = fs::symlink_metadata(path).expect("フィクスチャのリンクはある");
     assert!(
@@ -44,9 +35,9 @@ fn assert_is_symlink(path: &Path) {
     );
 }
 
+/// フィクスチャには対照の `script.js` / `data.json` も置いてある。
 #[test]
 fn test_typescript_paths_of_a_directory_with_js_and_json_returns_only_typescript_files() {
-    // 対照は同じディレクトリの `script.js` / `data.json`
     let root = fixture("extensions");
 
     let paths = sorted_typescript_paths_of(&root);
@@ -66,9 +57,9 @@ fn test_typescript_paths_of_nested_directories_returns_a_file_two_levels_down() 
     assert_eq!(paths, sorted_paths_under(&root, &["a/b/deep.ts"]));
 }
 
+/// フィクスチャの `x.ts` はディレクトリ。
 #[test]
 fn test_typescript_paths_of_a_directory_named_like_a_typescript_file_returns_its_contents_only() {
-    // `x.ts` はディレクトリ。ディレクトリかどうかより先に拡張子で見ると、ディレクトリ自身が返る
     let root = fixture("directory-named-like-a-file");
 
     let paths = sorted_typescript_paths_of(&root);
@@ -76,9 +67,9 @@ fn test_typescript_paths_of_a_directory_named_like_a_typescript_file_returns_its
     assert_eq!(paths, sorted_paths_under(&root, &["x.ts/inner.ts"]));
 }
 
+/// フィクスチャの `linked` は、対照の実体 `real/` へのリンク。
 #[test]
 fn test_typescript_paths_of_a_symlinked_directory_does_not_walk_into_it() {
-    // 対照はリンク先の実体 `real/`。リンクを辿ると `linked/x.ts` でも同じファイルが返る
     let root = fixture("symlinked-directory");
     assert_is_symlink(&root.join("linked"));
 
@@ -87,9 +78,9 @@ fn test_typescript_paths_of_a_symlinked_directory_does_not_walk_into_it() {
     assert_eq!(paths, sorted_paths_under(&root, &["real/x.ts"]));
 }
 
+/// フィクスチャの `alias.ts` は、対照の実体 `real.ts` へのリンク。
 #[test]
 fn test_typescript_paths_of_a_symlinked_file_leaves_it_out() {
-    // 対照はリンク先の実体 `real.ts`。リンクを返すと同じファイルが `alias.ts` でも返る
     let root = fixture("symlinked-file");
     assert_is_symlink(&root.join("alias.ts"));
 
