@@ -21,6 +21,7 @@ PRE_PUSH_REQUIRE_ALL=1 bash harness/githooks/pre-push   # push 前の検査を�
 
 - 依存を足す・更新するときは `cargo add` / `cargo update` を素で叩かず、`harness/deps/resolve.sh` を通す
   （公開から 14 日経っていないバージョンを使わない。nightly が要る。[`harness/deps/README.md`](harness/deps/README.md)）
+- PR では CI の `Mutants` ワークフローが差分の行に変異を入れ、テストで落ちない変異があれば落ちる。手元での走らせ方は [`harness/mutants/README.md`](harness/mutants/README.md)
 - git hooks は `bash harness/githooks/set-hooks-path.sh` で配線する（Claude Code のセッション開始時と DevContainer の作成時にも走るが、フックが読まれない環境もある）
 - DevContainer は `.devcontainer/`
 

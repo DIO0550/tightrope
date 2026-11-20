@@ -12,6 +12,7 @@ on:
   workflow_run:
     workflows:
       - Rust
+      - Mutants
     types: [completed]
 
 permissions:

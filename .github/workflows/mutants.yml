@@ -1,0 +1,78 @@
+# PR で変えた行に変異を入れ、テストで落ちない（生き残る）変異があれば落とす。
+# 手元での走らせ方と、生き残りを意図して許すときの書き方は harness/mutants/README.md。
+#
+# Why not（rust.yml のジョブにする）: 走らせるのは PR だけなので、rust.yml では main への push を `if:` で外すことになる。
+# 条件を書き違えると黙って skipped になり、skipped は必須チェックでも通過として扱われる。
+#
+# ci-trace.yml の `workflows:` に載せる。導入（cargo install）だけで約 1 分かかり、キャッシュを入れる時期をこの実行時間で決める。
+name: Mutants
+
+on:
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  # 版はここ 1 か所。上げ方は harness/mutants/README.md「版の上げ方」。
+  CARGO_MUTANTS_VERSION: "27.1.0"
+
+jobs:
+  mutants:
+    name: 差分の行の変異
+    runs-on: ubuntu-latest
+    steps:
+      # pull_request ではマージコミットを取り出す。1 つ目の親が main の先端なので、2 世代あれば
+      # `git diff HEAD^1 HEAD` が「この PR が main へ持ち込む差分」になる。
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 2
+
+      # 入れ方と Why not（dtolnay/rust-toolchain）は rust.yml の check ジョブと同じ。
+      - name: Rust ツールチェーン
+        run: |
+          rustup update --no-self-update stable
+          rustup default stable
+
+      # Why: `cargo install` は `global-min-publish-age` を見ない（nightly / stable 1.100 で実測）。
+      # 期間・版・日数の書き方のどれかが読めなければ、通さずに落とす。
+      - name: 道具の cooldown
+        run: |
+          seconds_per_day=86400
+          min_days=$(sed -n 's/^global-min-publish-age = "\([0-9]\+\) days\?"$/\1/p' .cargo/config.toml)
+          [ -n "$min_days" ] || { echo "::error::.cargo/config.toml の global-min-publish-age を \"N days\" として読めない"; exit 1; }
+          pubtime=$(curl -fsS https://index.crates.io/ca/rg/cargo-mutants | jq -r --arg v "$CARGO_MUTANTS_VERSION" 'select(.vers == $v) | .pubtime // empty')
+          [ -n "$pubtime" ] || { echo "::error::cargo-mutants $CARGO_MUTANTS_VERSION の公開日時を index から読めない"; exit 1; }
+          usable_from=$(( $(date -u -d "$pubtime" +%s) + min_days * seconds_per_day ))
+          if [ "$(date -u +%s)" -lt "$usable_from" ]; then
+            echo "::error::cargo-mutants $CARGO_MUTANTS_VERSION は $pubtime の公開で、$min_days 日経っていない"
+            exit 1
+          fi
+
+      # --locked: 公開時の Cargo.lock の版で入れる。lock の版はどれも本体より前に公開されたものなので、
+      # 本体の版の公開からの期間が依存全体の下限になる。
+      # Why not（キャッシュ）: 導入は約 1 分。版とツールチェーンで鍵を切る手間と復元漏れのほうが大きい。遅くなってから入れる。
+      - name: cargo-mutants
+        run: cargo install cargo-mutants --locked --version "$CARGO_MUTANTS_VERSION"
+
+      - name: PR の差分
+        run: git diff HEAD^1 HEAD > "$RUNNER_TEMP/pr.diff"
+
+      # rust.yml の check を待たない（ワークフローをまたいで needs は書けない）。
+      # 変異前の木でテストが落ちれば、cargo-mutants 自身が終了コード 4 で落ちる。
+      - name: cargo mutants
+        run: cargo mutants --in-diff "$RUNNER_TEMP/pr.diff" --annotations github
+
+      # always: 生き残りで落ちたときこそ要る。Rust を変えない差分では mutants.out が作られない。
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: mutants-out
+          path: mutants.out
+          if-no-files-found: ignore
+          retention-days: 7
