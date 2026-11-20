@@ -5,16 +5,19 @@
 #
 # 使い方: bash harness/githooks/lib/test-placement.sh [<根>]   (<根> の既定は src)
 # 置き場所を外れたテストを見出しの下に `<ファイル>:<行>: <行の中身>` で並べて exit 1。
-# 無ければ何も出さずに exit 0。<根> がディレクトリでない・走査に失敗したときは exit 2。
+# 無ければ何も出さずに exit 0。<根> がディレクトリでない・走査に失敗した・共有の一覧が読めないときは exit 2。
 #
-# テストを置いてよい場所を許可リスト(名前がちょうど `tests.rs` のファイルと、`tests/` の下)で書く。
-# 一覧に無い置き場所は「外れた」側へ倒れるので、漏れは見落としではなく誤検知になる。
+# テストを置いてよい場所の許可リストは `test-file-path.sh` が持ち、`test-file-length.sh` と共有する。
+# 一覧に無い置き場所は「外れた」側へ倒れる。
 #
 # 拾うのは、行頭(字下げは除く)のテストの属性(`#[test]` / `#[tokio::test]` のような道のついたもの /
 # `#[cfg_attr(test, test)]`)と、`#[cfg(test)]` の直後に中身ごと書いたモジュール(`mod x {`)。
 # 行頭に限るのは、doc コメントの例や文字列の中の `#[test]` を拾わないため。
 
 set -uo pipefail
+
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "$here/test-file-path.sh" || exit 2
 
 root="${1:-src}"
 if [ ! -d "$root" ]; then
@@ -24,12 +27,12 @@ fi
 
 # <根> からの相対パスで見る。絶対パスのまま見ると、<根> の上に `tests/` があるだけで全部が許される。
 # `#[cfg(test)]` の後の空行・コメント・他の属性は読み飛ばし、それ以外の行が来たら直前の `#[cfg(test)]` を忘れる。
-misplaced="$(cd "$root" && find . -type f -name '*.rs' -exec awk -v root="${root%/}" '
+misplaced="$(cd "$root" && find . -type f -name '*.rs' -exec awk -v root="${root%/}" "$test_file_path_awk"'
   FNR == 1 {
     cfg_test = 0
     path = FILENAME
     sub(/^\.\//, "", path)
-    allowed = (path ~ /(^|\/)tests\.rs$/ || path ~ /(^|\/)tests\//)
+    allowed = is_test_file_path(path)
   }
   allowed { next }
   /^[[:space:]]*#\[(cfg_attr\(test,[[:space:]]*)?([[:alnum:]_]+::)*test\)?\]/ {
