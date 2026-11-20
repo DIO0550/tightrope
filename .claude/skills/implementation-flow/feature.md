@@ -26,7 +26,9 @@
 第 1 工程はテストだけを書く(`SKILL.md` フェーズ 5)。新しいテストを走らせるのに要る配線は、次の
 3 つに限って第 1 工程に含める。型・関数の中身は 1 行も置かない。
 
-- 親モジュール(`src/lib.rs` か `src/<親>.rs`)の `mod` 1 行
+- 親モジュール(`src/lib.rs` か `src/<親>.rs`)の `mod` 1 行。可視性は計画したとおりに書く(公開するなら
+  `pub mod`)。Red の `mod foo;` を Green で `pub mod foo;` に変えると、`SKILL.md` フェーズ 5「第 2 工程以降で
+  確かめること」の配線の検査が `-mod foo;` を配線の削除として拾う
 - `#[cfg(test)] mod tests;` だけを置いた `src/<名前>.rs`
 - 新しい判定表を走らせる `harness/githooks/pre-push` の `run_check` 1 行
 
