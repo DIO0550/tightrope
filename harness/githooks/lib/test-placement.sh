@@ -25,13 +25,11 @@ if [ ! -d "$root" ]; then
   exit 2
 fi
 
-# <根> からの相対パスで見る。絶対パスのまま見ると、<根> の上に `tests/` があるだけで全部が許される。
 # `#[cfg(test)]` の後の空行・コメント・他の属性は読み飛ばし、それ以外の行が来たら直前の `#[cfg(test)]` を忘れる。
-misplaced="$(cd "$root" && find . -type f -name '*.rs' -exec awk -v root="${root%/}" "$test_file_path_awk"'
+misplaced="$(awk_rs_files_under "$root" -v root="${root%/}" "$test_file_path_awk"'
   FNR == 1 {
     cfg_test = 0
-    path = FILENAME
-    sub(/^\.\//, "", path)
+    path = relative_path_of(FILENAME)
     allowed = is_test_file_path(path)
   }
   allowed { next }
@@ -48,7 +46,7 @@ misplaced="$(cd "$root" && find . -type f -name '*.rs' -exec awk -v root="${root
   }
   /^[[:space:]]*(#\[|\/\/|$)/ { next }
   { cfg_test = 0 }
-' {} +)"
+')"
 scan_status=$?
 
 if [ "$scan_status" -ne 0 ]; then

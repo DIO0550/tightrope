@@ -85,6 +85,5 @@ pre-push: 結果 失敗(失敗 1 / 通過 18 / 飛ばした 1)
 ```bash
 PRE_PUSH_REQUIRE_ALL=1 bash harness/githooks/pre-push   # push 前の検査をすべて
 bash harness/githooks/lib/check-tally-cases.sh          # 集計そのものの判定表
-bash harness/githooks/lib/test-file-length-cases.sh     # テストのファイルの行数の検査の判定表
 bash harness/githooks/lib/test-placement-cases.sh       # テストの置き場所の検査の判定表
 ```

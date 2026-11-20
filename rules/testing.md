@@ -90,8 +90,8 @@ CI へサーバを入れて実際に走らせるステップも足す。
 ## 段をまたぐテストと単体のテストを分ける
 
 - 各段の振る舞いは、実装のファイルに `#[cfg(test)] mod tests;` だけを置き、それが指す `tests.rs` で見る
-  （`testing` スキルからの逸脱。`harness/githooks/lib/test-placement.sh` が落とす）。テストの観点が 2 つ以上なら
-  `tests.rs` には `mod <観点>;` だけを置き、`tests/<観点>.rs` に分ける（上限の行数は `harness/githooks/lib/test-file-length.sh`）
+  （`testing` スキルからの逸脱。`harness/githooks/lib/test-placement.sh` が落とす）。テストの観点（テストする対象のまとまり。
+  正常系・異常系の区別ではない）が 2 つ以上なら `tests.rs` には `mod <観点>;` だけを置き、`src/<名前>/tests/<観点>.rs` に分ける（上限の行数は `harness/githooks/lib/test-file-length.sh`）
 - 段をつないだ結果はクレート直下の `tests/`（統合テスト）で見る。単体で見られるものをそこへ寄せない（落ちたときに原因の範囲が広がる）
 
-**Why**（実装と別のファイルに、観点ごとに置く）: 読むときにテストが混ざらず、1 ファイルを読み切れて、差分をパスで切り出せる。
+**Why**（実装と別のファイルに、テストの観点ごとに置く）: 読むときにテストが混ざらず、1 ファイルを読み切れて、差分をパスで切り出せる。

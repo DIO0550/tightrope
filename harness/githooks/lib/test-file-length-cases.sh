@@ -17,6 +17,7 @@ work="$(mktemp -d)" || exit 1
 trap 'rm -rf "$work"' EXIT
 
 source "$here/../../../.claude/hooks/lib/cases-report.sh"
+source "$here/../../../.claude/hooks/lib/cases-fixtures.sh"
 
 # 上限の値は入れない(値を検査と判定表の 2 箇所に持たない)。
 heading='^テストのファイルが [0-9]+ 行を超えています'
@@ -65,7 +66,7 @@ verdict_of() {
 report "deny a/tests.rs: 101 行" "$(verdict_of tests-rs a/tests.rs 101)" \
   "上限を超えた tests.rs を、その 1 件だけ並べて落とす"
 report "deny a/tests/ordering.rs: 101 行" "$(verdict_of tests-child a/tests/ordering.rs 101)" \
-  "tests/ の下の観点のファイルも測る"
+  "tests/ の下のテストの観点のファイルも測る"
 report "deny a/b/tests.rs: 101 行" "$(verdict_of nested a/b/tests.rs 101)" \
   "下の階層の tests.rs も測る"
 report "deny tests.rs: 101 行" "$(verdict_of crate-root tests.rs 101)" \
@@ -98,12 +99,10 @@ missing_status=$?
 report broken "$(decide "$missing_output" "$missing_status" "$heading")" \
   "根が無ければ exit 2(pass と読まない)"
 
-# 走査そのものの失敗。root で走るとパーミッションで読めなくできないので、awk を失敗するものに差し替える。
-mkdir -p "$work/failing-bin" "$work/scan-fails/a"
-printf '#!/bin/sh\necho "awk: cannot open" >&2\nexit 2\n' >"$work/failing-bin/awk"
-chmod +x "$work/failing-bin/awk"
+# 走査そのものの失敗。
+mkdir -p "$work/scan-fails/a"
 write_lines "$work/scan-fails/a/tests.rs" 1
-scan_output="$(PATH="$work/failing-bin:$PATH" bash "$detector" "$work/scan-fails" 2>/dev/null)"
+scan_output="$(PATH="$(failing_awk_path_prefix "$work")$PATH" bash "$detector" "$work/scan-fails" 2>/dev/null)"
 scan_status=$?
 report broken "$(decide "$scan_output" "$scan_status" "$heading")" \
   "走査に失敗したら exit 2(上限を超えたものが無い pass と読まない)"

@@ -15,8 +15,7 @@ set -uo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$here/test-file-path.sh" || exit 2
 
-# 1 つのテストの観点は収まり、観点を 2 つ以上抱えたファイルは超える行数。開いていた PR のテストは、
-# 観点ごとに分けた見積もりが最大 83 行、分けていないものが 110・140 行だった。
+# 1 つのテストの観点を読み切れる量。テストの観点の数そのものはレビューが見る。
 max_lines=100
 
 root="${1:-src}"
@@ -25,11 +24,9 @@ if [ ! -d "$root" ]; then
   exit 2
 fi
 
-# <根> からの相対パスで見る。絶対パスのまま見ると、<根> の上に `tests/` があるだけで根の中の全部を測る。
-over="$(cd "$root" && find . -type f -name '*.rs' -exec awk -v root="${root%/}" -v max="$max_lines" "$test_file_path_awk"'
+over="$(awk_rs_files_under "$root" -v root="${root%/}" -v max="$max_lines" "$test_file_path_awk"'
   FNR == 1 {
-    path = FILENAME
-    sub(/^\.\//, "", path)
+    path = relative_path_of(FILENAME)
     measured = is_test_file_path(path)
   }
   measured { lines[path] = FNR }
@@ -38,7 +35,7 @@ over="$(cd "$root" && find . -type f -name '*.rs' -exec awk -v root="${root%/}" 
       if (lines[p] > max) print root "/" p ": " lines[p] " 行"
     }
   }
-' {} +)"
+')"
 scan_status=$?
 
 if [ "$scan_status" -ne 0 ]; then
@@ -50,6 +47,6 @@ if [ -z "$over" ]; then
   exit 0
 fi
 
-printf 'テストのファイルが %s 行を超えています(%s の下)。`<名前>/tests.rs` には `mod <観点>;` だけを置いて、テストを `<名前>/tests/<観点>.rs` へテストの観点ごとに分けてください。1 つの観点だけで超えるなら、その観点をさらに細かい観点に分けます(共有するヘルパーは `tests/<名前>.rs` に `pub(super)` で置けます):\n' "$max_lines" "$root"
+printf 'テストのファイルが %s 行を超えています(%s の下)。`<名前>/tests.rs` には `mod <観点>;` だけを置いて、テストを `<名前>/tests/<観点>.rs` へテストの観点ごとに分けてください。1 つのテストの観点だけで超えるなら、そのテストの観点をさらに細かく分けるか、長い入力をクレート直下の `tests/fixtures/` へ出して読みます(assert を含む、テストに依存するヘルパーを共有するなら `<名前>/tests/<ヘルパー>.rs` に `pub(super)` で置けます):\n' "$max_lines" "$root"
 printf '%s\n' "$over" | LC_ALL=C sort
 exit 1

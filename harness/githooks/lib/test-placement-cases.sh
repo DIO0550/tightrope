@@ -15,6 +15,7 @@ work="$(mktemp -d)" || exit 1
 trap 'rm -rf "$work"' EXIT
 
 source "$here/../../../.claude/hooks/lib/cases-report.sh"
+source "$here/../../../.claude/hooks/lib/cases-fixtures.sh"
 
 heading='^テストが実装と同じファイルにあります'
 inline_tests=$'pub fn f() -> u8 { 1 }\n\n#[cfg(test)]\nmod tests {\n    #[test]\n    fn f_is_one() {}\n}\n'
@@ -69,12 +70,10 @@ report pass "$(verdict_of in-string a.rs $'pub const S: &str = "#[test] mod test
 report pass "$(verdict_of cfg-test-then-code a.rs $'#[cfg(test)]\nuse std::fmt;\n\nmod real {\n    pub fn f() {}\n}\n')" \
   "#[cfg(test)] が別の項目に掛かった後のモジュールは拾わない"
 
-# 走査そのものの失敗。root で走るとパーミッションで読めなくできないので、awk を失敗するものに差し替える。
-mkdir -p "$work/failing-bin" "$work/scan-fails"
-printf '#!/bin/sh\necho "awk: cannot open" >&2\nexit 2\n' >"$work/failing-bin/awk"
-chmod +x "$work/failing-bin/awk"
+# 走査そのものの失敗。
+mkdir -p "$work/scan-fails"
 printf 'pub fn f() {}\n' >"$work/scan-fails/a.rs"
-scan_output="$(PATH="$work/failing-bin:$PATH" bash "$detector" "$work/scan-fails" 2>/dev/null)"
+scan_output="$(PATH="$(failing_awk_path_prefix "$work")$PATH" bash "$detector" "$work/scan-fails" 2>/dev/null)"
 scan_status=$?
 report broken "$(decide "$scan_output" "$scan_status" "$heading")" \
   "走査に失敗したら exit 2(違反なしの pass と読まない)"
@@ -87,5 +86,14 @@ missing_output="$(bash "$detector" "$work/missing" 2>/dev/null)"
 missing_status=$?
 report broken "$(decide "$missing_output" "$missing_status" "$heading")" \
   "根が無ければ exit 2(pass と読まない)"
+
+# 共有の一覧が読めないとき。検査だけを使い捨ての場所へ写すと、隣に test-file-path.sh が無い。
+mkdir -p "$work/detector-alone" "$work/unshared"
+cp "$detector" "$work/detector-alone/"
+printf '%s' "$inline_tests" >"$work/unshared/a.rs"
+unshared_output="$(bash "$work/detector-alone/test-placement.sh" "$work/unshared" 2>/dev/null)"
+unshared_status=$?
+report broken "$(decide "$unshared_output" "$unshared_status" "$heading")" \
+  "共有の test-file-path.sh が読めなければ exit 2(違反なしの pass と読まない)"
 
 exit "$cases_failed"
