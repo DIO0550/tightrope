@@ -20,6 +20,9 @@
 set -uo pipefail
 
 seconds_per_day=86400
+# index へつながるまでと、取得し終えるまでの上限。超えたら index を読めないとして通さない。
+index_connect_timeout_seconds=10
+index_max_time_seconds=60
 here="$(CDPATH= cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 index_url="${TOOL_COOLDOWN_INDEX_URL:-https://index.crates.io}"
 config="${TOOL_COOLDOWN_CONFIG:-$here/../../.cargo/config.toml}"
@@ -47,6 +50,21 @@ index_path_of() {
   esac
 }
 
+# 設定ファイルの `[registry]` テーブルにある `global-min-publish-age` の行を出す。他のテーブルの
+# 同じキーは見ない。テーブルの見出しは前後の空白だけを許し、それ以外の書き方の見出しは
+# `[registry]` の外として読む（読めなければ通さない側に倒れる）。
+#
+# $1 設定ファイル
+# 出力: その行。無い・2 行以上あるときは何も出さない
+# Why: 呼ぶ側の `=~` では `.` も `[[:space:]]` も改行に当たり、2 行を 1 行として読みうるので、ここで 1 行に絞る。
+registry_publish_age_line_of() {
+  awk '
+    /^[[:space:]]*\[/ { in_registry = /^[[:space:]]*\[registry\][[:space:]]*$/; next }
+    in_registry && /^[[:space:]]*global-min-publish-age[[:space:]]*=/ { found++; line = $0 }
+    END { if (found == 1) print line }
+  ' "$1"
+}
+
 [ "$#" -eq 2 ] || undecidable "使い方: tool-cooldown.sh <crate> <版>"
 crate="$1"
 version="$2"
@@ -55,10 +73,14 @@ version="$2"
 
 # Why not（日数以外の単位も読む）: 読み方を増やすほど読み違いが増える。読めなければ通さないので、
 # 書き方を変えたらここが落ちて気づく。
-min_days="$(sed -nE 's/^global-min-publish-age = "([0-9]+) days?"$/\1/p' "$config" 2>/dev/null)"
-[[ "$min_days" =~ ^[0-9]+$ ]] || undecidable "$config の global-min-publish-age を \"N days\" として 1 つ読めない"
+age_line="$(registry_publish_age_line_of "$config" 2>/dev/null)" || undecidable "$config を読めない"
+age_pattern='^[[:space:]]*global-min-publish-age[[:space:]]*=[[:space:]]*"([0-9]+) days?"[[:space:]]*(#.*)?$'
+[[ "$age_line" =~ $age_pattern ]] || undecidable "$config の [registry] の global-min-publish-age を \"N days\" として 1 つ読めない"
+# 10 進数として読む。素の算術では 0 始まりの日数（"010 days"）が 8 進数になり、期間が縮む。
+min_days=$((10#${BASH_REMATCH[1]}))
 
-index_lines="$(curl -fsS "$index_url/$(index_path_of "$crate")")" || undecidable "$crate の版の一覧を $index_url から読めない"
+index_lines="$(curl -fsS --connect-timeout "$index_connect_timeout_seconds" --max-time "$index_max_time_seconds" \
+  "$index_url/$(index_path_of "$crate")")" || undecidable "$crate の版の一覧を $index_url から読めない"
 entry="$(jq -c --arg v "$version" 'select(.vers == $v)' <<<"$index_lines")" || undecidable "$crate の版の一覧を JSON として読めない"
 [ -n "$entry" ] || undecidable "$crate $version が index に無い"
 pubtime="$(jq -r '.pubtime // empty' <<<"$entry")"

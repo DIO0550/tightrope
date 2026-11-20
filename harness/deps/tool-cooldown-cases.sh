@@ -67,6 +67,11 @@ three_days="$(config_of three.toml $'[registry]\nglobal-min-publish-age = "3 day
 one_day="$(config_of one.toml $'[registry]\nglobal-min-publish-age = "1 day"\n')"
 no_age="$(config_of no-age.toml $'[registry]\n')"
 weeks="$(config_of weeks.toml $'[registry]\nglobal-min-publish-age = "2 weeks"\n')"
+other_table_only="$(config_of other-table-only.toml $'[registry]\n\n[other]\nglobal-min-publish-age = "0 days"\n')"
+other_table_first="$(config_of other-table-first.toml $'[other]\nglobal-min-publish-age = "0 days"\n\n[registry]\nglobal-min-publish-age = "3 days"\n')"
+trailing_comment="$(config_of trailing-comment.toml $'[registry]\nglobal-min-publish-age = "3 days" # 検知ラグを覆う\n')"
+no_spaces="$(config_of no-spaces.toml $'[registry]\nglobal-min-publish-age="3 days"\n')"
+leading_zero="$(config_of leading-zero.toml $'[registry]\nglobal-min-publish-age = "010 days"\n')"
 
 put_index_line ca/rg/cargo-mutants "{\"name\":\"cargo-mutants\",\"vers\":\"1.0.0\",\"pubtime\":\"$long_ago\"}"
 put_index_line ca/rg/cargo-mutants "{\"name\":\"cargo-mutants\",\"vers\":\"1.1.0\",\"pubtime\":\"$(days_ago 0)\"}"
@@ -74,6 +79,7 @@ put_index_line ca/rg/cargo-mutants "{\"name\":\"cargo-mutants\",\"vers\":\"1.2.0
 put_index_line ca/rg/cargo-mutants "{\"name\":\"cargo-mutants\",\"vers\":\"1.3.0\",\"pubtime\":\"$(days_ago 4)\"}"
 put_index_line ca/rg/cargo-mutants '{"name":"cargo-mutants","vers":"1.4.0"}'
 put_index_line ca/rg/cargo-mutants '{"name":"cargo-mutants","vers":"1.5.0","pubtime":"昨日"}'
+put_index_line ca/rg/cargo-mutants "{\"name\":\"cargo-mutants\",\"vers\":\"1.6.0\",\"pubtime\":\"$(days_ago 9)\"}"
 
 report pass "$(verdict_of "$fourteen_days" cargo-mutants 1.0.0)" \
   "公開から期間が経った版は通す"
@@ -89,6 +95,14 @@ report pass "$(verdict_of - cargo-mutants 1.0.0)" \
   "設定を差し替えなければ、このリポジトリの .cargo/config.toml を読む（古い版は通す）"
 report deny "$(verdict_of - cargo-mutants 1.1.0)" \
   "設定を差し替えなければ、このリポジトリの .cargo/config.toml を読む（公開直後の版は落とす）"
+report deny "$(verdict_of "$other_table_first" cargo-mutants 1.2.0)" \
+  "[registry] の前に別のテーブルの同じキーがあっても [registry] の値を使う（3 days なら 2 日前の版を落とす）"
+report deny "$(verdict_of "$trailing_comment" cargo-mutants 1.2.0)" \
+  "値の後ろのコメントを読み飛ばす（3 days なら 2 日前の版を落とす）"
+report deny "$(verdict_of "$no_spaces" cargo-mutants 1.2.0)" \
+  "= の前後に空白が無くても読む（3 days なら 2 日前の版を落とす）"
+report deny "$(verdict_of "$leading_zero" cargo-mutants 1.6.0)" \
+  "0 始まりの日数を 10 進数で読む（010 days なら 9 日前の版を落とす）"
 
 report broken "$(verdict_of "$fourteen_days" cargo-mutants 9.9.9)" \
   "index に無い版は exit 2（通さない）"
@@ -98,6 +112,8 @@ report broken "$(verdict_of "$fourteen_days" cargo-mutants 1.5.0)" \
   "pubtime が日時として読めない版は exit 2（通さない）"
 report broken "$(verdict_of "$no_age" cargo-mutants 1.0.0)" \
   "設定に global-min-publish-age が無ければ exit 2（通さない）"
+report broken "$(verdict_of "$other_table_only" cargo-mutants 1.0.0)" \
+  "global-min-publish-age が [registry] に無く別のテーブルにだけあれば exit 2（通さない）"
 report broken "$(verdict_of "$weeks" cargo-mutants 1.0.0)" \
   "日数でない書き方（2 weeks）は exit 2（通さない）"
 report broken "$(verdict_of "$work/missing.toml" cargo-mutants 1.0.0)" \
