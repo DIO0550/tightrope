@@ -2,4 +2,5 @@
 //! (rules/architecture.md「lib と bin を分ける」)。
 
 pub mod cli;
+pub mod distance;
 pub mod strength;

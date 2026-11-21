@@ -90,7 +90,7 @@
 | `type` | rules/coding.md「エラーと不在の表現」「生成時に検証し」「値の語彙を型で閉じる」「不正な状態を型で表現できなくする」/ rules/architecture.md「取れなかった値を既定値で埋めない」 | `companion-object` `immutability` `result-option` `signature` `type-vocabulary` `illegal-state` |
 | `duplication` | rules/coding.md「同じ処理が2箇所に現れたら共通化する」/ rules/testing.md「テスト用ヘルパーの置き場所」 | `duplication-*` |
 | `naming` | rules/naming.md | `naming-*` |
-| `comment` | rules/coding.md「コメントは doc と Why / Why not に絞る」 | `comment-*` |
+| `comment` | rules/coding.md「コメントは doc だけにする」 | `comment-*` |
 | `test` | rules/testing.md | `test-*` |
 | `over-guard` | 過剰なブロック / フォールバック(`over-guard-reviewer`) | — |
 | `plan` | `implementation-flow` フェーズ 3〜4 / `plan-reviewer`(フェーズ 6 の方式は `solution-reviewer`) | `plan-*` `version-bump-unverified` |

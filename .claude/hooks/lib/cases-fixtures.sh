@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 #
 # フックの判定表(`*-cases.sh`)が共有する、ケースの前提の置き方。落ちる検出器・起動できない python3・
-# 本体が同じテストヘルパーを渡されたパスへ置くものと、サブエージェントの中の呼び出しの入力を組むもの。
+# 失敗する awk・本体が同じテストヘルパーを渡されたパスへ置くものと、サブエージェントの中の呼び出しの入力を組むもの。
 #
 # 使う側: lib/pre-push-detector-cases.sh / lib/edit-detector-cases.sh / lib/import-rule-cases.sh /
-# lib/verification-agent-cases.sh / lib/parent-session-edit-cases.sh
+# lib/verification-agent-cases.sh / lib/parent-session-edit-cases.sh /
+# harness/githooks/lib/test-placement-cases.sh / harness/githooks/lib/test-file-length-cases.sh
 #
 # 終了コードと出力の組を実物の検出器から決まった形で作れないので、判定表は検出器をスタブで作る
 # (ここに置くのは判定表どうしが共有する落ちる側。報告の行を出すスタブは報告の綴りが違うので各判定表が持つ)。
@@ -45,6 +46,18 @@ python3_path_prefix() {
   printf '#!/usr/bin/env bash\nexit 127\n' >"$2/broken-bin/python3"
   chmod +x "$2/broken-bin/python3"
   printf '%s:' "$2/broken-bin"
+}
+
+# 起動すると読めなかったと言って 2 で落ちる awk を置き、PATH の先頭に足す値を返す。
+#
+# Why(awk を差し替える): 走査の失敗を作りたいが、root で走るとパーミッションでファイルを読めなくできない。
+#
+# $1 置き場のディレクトリ(その下の `failing-bin/` に置く)
+failing_awk_path_prefix() {
+  mkdir -p "$1/failing-bin"
+  printf '#!/bin/sh\necho "awk: cannot open" >&2\nexit 2\n' >"$1/failing-bin/awk"
+  chmod +x "$1/failing-bin/awk"
+  printf '%s:' "$1/failing-bin"
 }
 
 # 深さの違う 2 つの `__tests__/`(`a/__tests__/` と `b/c/__tests__/`)の `setup.ts` に、本体が同じヘルパーを置く。
