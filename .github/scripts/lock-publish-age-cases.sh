@@ -472,4 +472,48 @@ commit_at "$added_at" "adds a crates.io package without name"
 report "broken reason=yes" "$(summary_of "$index" "$fourteen_days" main pr)" \
   "G12 name の無い crates.io の [[package]] は exit 2"
 
+# --- PR の bot レビューの後に足したケース ---
+
+start_repo g13
+printf '\n[[package]]\nname = "fresh"\nversion = "1.0.0"\n"source" = "%s"\nchecksum = "%s"\n' \
+  "$crates_io_source" "$checksum" >>Cargo.lock
+commit_at "$added_at" "adds fresh with a double-quoted source key"
+report "broken reason=yes" "$(summary_of "$index" "$fourteen_days" main pr)" \
+  "G13 [[package]] の中の \"source\" のような引用符付きのキーは、source の無い path と読まずに exit 2"
+
+start_repo g14
+printf "\n[[package]]\nname = \"fresh\"\nversion = \"1.0.0\"\n'source' = \"%s\"\nchecksum = \"%s\"\n" \
+  "$crates_io_source" "$checksum" >>Cargo.lock
+commit_at "$added_at" "adds fresh with a single-quoted source key"
+report "broken reason=yes" "$(summary_of "$index" "$fourteen_days" main pr)" \
+  "G14 [[package]] の中の 'source' のような引用符付きのキーも exit 2"
+
+start_repo g15
+write_lock base@1.0.0 fresh@1.0.0 gitdep@1.0.0@git
+printf 'dependencies = [\n "gitdep 1.0.0 (git+https://github.com/example/gitdep?branch=main#%s)",\n]\n' \
+  "${checksum:0:40}" >>Cargo.lock
+commit_at "$added_at" "adds fresh and gitdep with a dependency entry holding '='"
+report "deny commits=1 checked=1 denied=fresh@1.0.0" "$(summary_of "$index" "$fourteen_days" main pr)" \
+  "G15 dependencies の要素の文字列が = を含んでも、引用符付きのキーと読まない(対照 fresh)"
+
+# CI と同じく、PR を main へマージしたコミットを取り出し、ワークフローが渡す引数で走らせる。
+start_repo g16
+git checkout -q main || exit 1
+write_lock base@1.0.0 young@1.0.0
+commit_at "$added_at" "main adds young"
+git checkout -q pr || exit 1
+merge_at "$added_at" main base@1.0.0 young@1.0.0
+write_lock base@1.0.0 fresh@1.0.0 young@1.0.0
+commit_at "$added_at" "adds fresh"
+git checkout -q main || exit 1
+write_lock base@1.0.0
+commit_at "$next_day" "main removes young"
+git checkout -q --detach main || exit 1
+merge_at "$later" pr base@1.0.0 fresh@1.0.0
+workflow_args="$(sed -n 's|^[[:space:]]*run: bash \.github/scripts/lock-publish-age\.sh ||p' \
+  "$repo_root/.github/workflows/lock-publish-age.yml")"
+read -ra g16_args <<<"$workflow_args"
+report "deny commits=3 checked=1 denied=fresh@1.0.0" "$(summary_of "$index" "$fourteen_days" "${g16_args[@]}")" \
+  "G16 ワークフローの引数では、PR が main を取り込んだ後に main が消した版を確かめない。マージでも足した fresh は PR のコミットの時刻で見る"
+
 exit "$cases_failed"

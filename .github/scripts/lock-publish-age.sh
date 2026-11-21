@@ -8,6 +8,11 @@
 # 使い方:
 #   bash .github/scripts/lock-publish-age.sh <base> <head>
 #
+#   CI(.github/workflows/lock-publish-age.yml)は PR を main へマージしたコミットを取り出し、<base> に HEAD^1(main の
+#   先端)、<head> に HEAD(マージ結果)を渡す。PR の先端を <head> にすると、PR が main を取り込んだ後に main が消した版が
+#   PR の先端の lock に残り、取り込みのマージで足した版として確かめてしまう。マージ結果を <head> にすると、範囲に
+#   マージコミット自身も入り、PR で足した版をマージでも足したと数えるが、時刻は PR のコミットの早いほうを使う
+#
 # 確かめる版と、その時点:
 #   - 範囲の各コミットについて、そのコミットと 1 つ目の親の Cargo.lock の [[package]] を比べ、増えた
 #     (name, version, source) を「そのコミットで足した版」とする。同じ版を足したコミットが複数あれば、committer の
@@ -67,13 +72,17 @@ min_days="$(min_publish_days_of "$prefix" "$config")" || exit 2
 # 重複なく出す。path の版は source が空になる。Cargo.lock が無ければ何も出さない。
 #
 # $1 コミット
-# 終了コード: name か version を読めない [[package]] がある・`[[package]]` 以外で package を含む見出しがある・
-#   Cargo.lock を取り出せないなら 0 以外
+# 終了コード: name か version を読めない [[package]] がある・[[package]] の中に引用符で囲んだキーがある・
+#   `[[package]]` 以外で package を含む見出しがある・Cargo.lock を取り出せないなら 0 以外
+#   (引用符で囲んだキーは、それが source かを読み分けずに止める。読み落とすと source の無い path の版と読む)
 packages_of() {
   local lock
   git cat-file -e "$1:Cargo.lock" 2>/dev/null || return 0
   lock="$(git show "$1:Cargo.lock")" || return 1
-  awk -v sep="$sep" '
+  awk -v sep="$sep" -v single_quote="'" '
+    BEGIN {
+      quoted_key = "^[[:space:]]*(\"([^\"\\\\]|\\\\.)*\"|" single_quote "[^" single_quote "]*" single_quote ")[[:space:]]*[.=]"
+    }
     function flush() {
       if (!in_package) return
       lacks_name_or_version = (name == "" || version == "")
@@ -88,6 +97,7 @@ packages_of() {
       name = ""; version = ""; source = ""
       next
     }
+    in_package && $0 ~ quoted_key { broken = 1; next }
     in_package && /^[[:space:]]*(name|version|source)[[:space:]]*=/ {
       if ($0 !~ /^(name|version|source) = "[^"]*"$/) { broken = 1; next }
       key = $0; sub(/ = .*$/, "", key)

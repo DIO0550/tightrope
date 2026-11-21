@@ -27,7 +27,8 @@ jobs:
     # 足した版の crate ごとに index を 1 回読むだけなので、checkout と遅いランナーの分を見込んでも数分で済む。
     timeout-minutes: 5
     steps:
-      # pull_request ではマージコミットを取り出す。HEAD^1 が main の先端、HEAD^2 が PR の先端。
+      # pull_request ではマージコミットを取り出す。HEAD^1 が main の先端、HEAD が PR を main へマージした結果。
+      # Why(HEAD^2 でなく HEAD を渡す): 確かめる版をマージ結果の lock で絞る(理由は lock-publish-age.sh の冒頭「使い方」)。
       # Why(全履歴): lock-publish-age.sh は浅いクローンで止まる(理由は .github/scripts/lib/commit-range.sh)。
       # Why(persist-credentials: false): 取り出した後に git でリモートへ繋がない(index は curl で読む)。
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -36,4 +37,4 @@ jobs:
           persist-credentials: false
 
       - name: 足した版の公開からの期間
-        run: bash .github/scripts/lock-publish-age.sh HEAD^1 HEAD^2
+        run: bash .github/scripts/lock-publish-age.sh HEAD^1 HEAD

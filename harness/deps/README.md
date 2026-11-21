@@ -58,7 +58,7 @@ bash harness/deps/tool-cooldown-cases.sh   # 判定表
 防御にはならない（理由は「なぜ入口を 1 つにするか」）。
 
 ```bash
-bash .github/scripts/lock-publish-age.sh origin/main HEAD   # PR と同じ確かめ方を手元で
+bash .github/scripts/lock-publish-age.sh origin/main HEAD   # 手元で PR の先端を(CI は main とのマージ結果を見る)
 bash .github/scripts/lock-publish-age-cases.sh              # 判定表
 ```
 
