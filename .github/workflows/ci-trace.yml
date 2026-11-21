@@ -12,6 +12,8 @@ on:
   workflow_run:
     workflows:
       - Rust
+      - Mutants
+      - TDD Red
     types: [completed]
 
 permissions:

@@ -99,6 +99,7 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
+      # red-commits.yml も同じ入れ方で pre-push を走らせる。ここを変えたらそちらも合わせる。
       - name: Rust ツールチェーン
         run: |
           rustup update --no-self-update stable
