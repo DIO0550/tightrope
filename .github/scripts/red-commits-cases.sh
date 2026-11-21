@@ -88,12 +88,14 @@ commit_with_message() {
 #
 # $1 目印(ログに残す)
 # $2 結果(pass = すべて通過 / fail = 検査が落ちた / skip = 飛ばした検査があるだけで、落ちた検査は無い)
+#    silent = 結果行を出さずに exit 0
 fake_prepush_of() {
   local marker="$1" checks
   case "$2" in
     pass) checks='run_check 偽の検査 true' ;;
     fail) checks='run_check 偽の検査 false' ;;
     skip) checks=$'run_check 偽の検査 true\nskip_following_checks 偽の道具が無い\nrun_check 飛ばす偽の検査 true' ;;
+    silent) checks='exit 0' ;;
   esac
   cat <<EOF
 #!/usr/bin/env bash
@@ -278,6 +280,18 @@ commit_with_message "$(message_of folded 'TDD: red' '  extra')"
 commit_with_message "$(message_of control 'TDD: red')"
 report "exit=0 picked=control" "$(pick_summary_of main pr)" "L13 折り返した TDD: red と継続行は拾わない"
 
+start_repo_on_pr l14
+commit_with_message "$(message_of order 'TDD: red' 'TDD: green')"
+report "exit=0 picked=order" "$(pick_summary_of main pr)" "L14 TDD のトレーラが 2 つあり、red が先で後ろが green でも拾う"
+
+start_repo_on_pr l15
+commit_with_message "$(message_of red 'TDD: red')"
+pick_summary="$(pick_summary_of main pr extra)"
+usage_on_stderr=no
+grep -q '^使い方:' "$pick_stderr" && usage_on_stderr=yes
+report "exit=2 usage_on_stderr=yes" "${pick_summary%% *} usage_on_stderr=$usage_on_stderr" \
+  "L15 引数が 3 つなら、標準エラーに使い方を出して止まる"
+
 # --- 確かめ方(check-red-commits.sh) ---
 
 start_repo_on_main_with_red_pr c1 fail pass
@@ -344,5 +358,26 @@ report "exit=2 heading=確かめられない(Red のコミットの pre-push の
 start_repo_on_main_with_red_pr c13 fail skip
 report "exit=2 heading=確かめられない(PR の先端の pre-push の結果を読めない) log=head" "$(check_summary_of main pr)" \
   "C13 先端の pre-push が飛ばしただけで落ちたなら、先端の失敗ではなく「確かめられない」にする"
+
+# GIT_DIR の向け先は main と pr を持ち Red の無いリポジトリにする。漏れを読むと「Red の印が無い」で通ってしまう。
+start_repo_on_pr c14-other
+commit_with_message head
+start_repo_on_main_with_red_pr c14 fail pass
+report "exit=0 heading=通過(Red で落ち、PR の先端で通った) log=head,red" \
+  "$(GIT_DIR="$work/c14-other/.git" check_summary_of main pr)" \
+  "C14 外から GIT_DIR が渡っても、カレントのリポジトリを確かめる"
+
+start_repo_on_main_with_red_pr c15 fail silent
+report "exit=2 heading=確かめられない(PR の先端の pre-push の結果を読めない) log=head" "$(check_summary_of main pr)" \
+  "C15 先端の pre-push が結果行を出さずに exit 0 なら、通ったと数えない"
+
+start_repo_on_main_with_red_pr c16 fail pass
+: >"$FAKE_PREPUSH_LOG"
+check_status=0
+bash "$check_script" main pr extra >/dev/null 2>"$work/check-usage.err" || check_status=$?
+usage_on_stderr=no
+grep -q '^使い方:' "$work/check-usage.err" && usage_on_stderr=yes
+report "exit=2 usage_on_stderr=yes log=" "exit=$check_status usage_on_stderr=$usage_on_stderr log=$(logged_markers)" \
+  "C16 引数が 3 つなら、標準エラーに使い方を出して、pre-push を走らせずに止まる"
 
 exit "$cases_failed"
