@@ -22,13 +22,21 @@ bash harness/deps/tool-cooldown.sh cargo-mutants "$version" && cargo install car
 ```bash
 (
   base="$(git merge-base origin/main HEAD)" || { echo "差分の基点が取れない（origin/main が無い）。git fetch origin main の後に走らせ直す" >&2; exit 1; }
-  diff_file="$(mktemp)"
+  work="$(mktemp -d)" || exit 1
+  trap 'rm -rf "$work"' EXIT
+  diff_file="$work/diff"
   git diff "$base" > "$diff_file" || exit 1
-  git ls-files --others --exclude-standard -z | xargs -0 -r -n1 git diff --no-index -- /dev/null >> "$diff_file" || [ $? -eq 123 ] || exit 1
-  out="$(mktemp -d)"
+  git ls-files --others --exclude-standard -z > "$work/untracked" || exit 1
+  while IFS= read -r -d '' path; do
+    diff_status=0
+    git_error="$(git diff --no-index -- /dev/null "$path" 2>&1 >> "$diff_file")" || diff_status=$?
+    [ -z "$git_error" ] || { printf '%s\n追跡していないファイルの差分を作れない: %s\n' "$git_error" "$path" >&2; exit 1; }
+    [ "$diff_status" -le 1 ] || { echo "追跡していないファイルの差分を作れない: $path（終了コード $diff_status）" >&2; exit 1; }
+  done < "$work/untracked"
+  out="$(mktemp -d)" || exit 1
   status=0
-  CARGO_TARGET_DIR="$(mktemp -d)" cargo mutants --in-diff "$diff_file" -o "$out" || status=$?
-  printf '差分ファイル: %s（%s バイト）\n' "$diff_file" "$(wc -c < "$diff_file")"
+  CARGO_TARGET_DIR="$work/target" cargo mutants --in-diff "$diff_file" -o "$out" || status=$?
+  printf '差分ファイルの大きさ: %s バイト\n' "$(wc -c < "$diff_file")"
   printf '%s\n' "$out"
   printf 'cargo mutants の終了コード: %s\n' "$status"
 )
@@ -41,8 +49,11 @@ bash harness/deps/tool-cooldown.sh cargo-mutants "$version" && cargo install car
   Why not（`git add -N`）: index を書き換えるので、走らせる前と後で `git status` が変わる
 - `--` を `/dev/null` の前に置く。置かないと、`--output=Cargo.toml` のような `-` で始まる名前の
   ファイルをオプションとして読み、`=` の後の名前のファイル（この例では `Cargo.toml`）を空にする
-- 終了コード 123 を許すのは `xargs` の行だけ（`git diff --no-index` が差分ありで 1 を返し、`xargs` はそれを 123 にする）
-- `CARGO_TARGET_DIR` は呼ぶたびに `mktemp -d` で自分専用にする。並列で動く他のビルドと `target/` を取り合わない
+- 追跡していないファイルは一覧を先にファイルへ取ってから 1 件ずつ回す。`git ls-files` の失敗で止めるため
+- `git diff --no-index` は差分ありで 1 を返し、入れ子の Git リポジトリを読めなかったときも 1 を返す。なので失敗は
+  終了コード（2 以上。読めないファイルは 128）と stderr の両方で見分ける。Why not（`xargs`）: 失敗も 123 にまとめ、欠けた差分のまま進む
+- 差分ファイルとビルド先（`CARGO_TARGET_DIR`）は、呼ぶたびに作る一時ディレクトリに置き、終わったときに消す。
+  ビルド先を自分専用にして、並列で動く他のビルドと `target/` を取り合わない。`-o` のディレクトリは結果を読むために残す
 - 差分は走らせる直前に作る。作った後に木を変えると、差分と木が食い違う
 
 ## 結果の読み方
