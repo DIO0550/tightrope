@@ -17,10 +17,10 @@ cd "$(git rev-parse --show-toplevel)" || exit 1
 # push を止めても検査の質は上がらない。無条件のゲートは CI（層 1）にある。
 # 飛ばした検査は最後の行で数える。
 command -v cargo >/dev/null 2>&1 || skip_following_checks "cargo が無い"
-run_check "fmt" cargo fmt --check
-run_check "clippy" cargo clippy --all-targets -- -D warnings
-run_check "doc" env RUSTDOCFLAGS="-D rustdoc::private_intra_doc_links" cargo doc --no-deps
-run_check "test" cargo test
+run_check "fmt" bash harness/githooks/lib/rust-checks.sh fmt
+run_check "clippy" bash harness/githooks/lib/rust-checks.sh clippy
+run_check "doc" bash harness/githooks/lib/rust-checks.sh doc
+run_check "test" bash harness/githooks/lib/rust-checks.sh test
 run_check "cargo の検査の判定表" bash harness/githooks/lib/rust-checks-cases.sh
 resume_checks
 

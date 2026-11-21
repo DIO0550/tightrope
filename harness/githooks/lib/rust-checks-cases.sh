@@ -8,6 +8,8 @@
 #   kept / changed    Cargo.lock が検査の前と同じ中身のまま残ったか
 #   locked / -        標準出力か標準エラーに `because --locked was passed` が出たか
 #   hint / -          標準エラーに `harness/deps/resolve.sh` を含む行があるか
+# 例外は 3 つ。G2〜G6 は path 依存を持たないクレートで組む。G1 はクレートの外で走らせ、終了コードを照らす。
+# G5 は終了コードと、src/lib.rs が検査の前と同じ中身のまま残ったか(`untouched / rewritten`)を照らす。
 #
 # 使い方: bash harness/githooks/lib/rust-checks-cases.sh
 # 食い違ったケースがあれば exit 1(`ok` だけなら期待どおり)。
@@ -60,11 +62,115 @@ outcome_of() {
   printf '%s:%s:%s:%s' "$result" "$lock_state" "$locked" "$hint"
 }
 
+# lock を作る前に path 依存を Cargo.toml に足した(lock が依存と合っている)クレートを置き、そのディレクトリを出す。
+#
+# $1 ケースの名前(置き場のディレクトリ名)
+crate_in_lock_of() {
+  local root="$work/$1"
+  place_crate "$root/dep" dep
+  place_crate "$root/app" app
+  printf '\n[dependencies]\ndep = { path = "../dep" }\n' >>"$root/app/Cargo.toml"
+  (cd "$root/app" && cargo generate-lockfile --offline --quiet) || exit 1
+  echo "$root/app"
+}
+
+# 依存を持たず、src/lib.rs に渡したソースを置いたクレートを、lock を添えて置き、そのディレクトリを出す。
+#
+# $1 ケースの名前(置き場のディレクトリ名)
+# $2 src/lib.rs の中身
+crate_with_source_of() {
+  local root="$work/$1"
+  place_crate "$root/app" app
+  printf '%s' "$2" >"$root/app/src/lib.rs"
+  (cd "$root/app" && cargo generate-lockfile --offline --quiet) || exit 1
+  echo "$root/app"
+}
+
+# クレートのディレクトリをカレントにして検査を走らせ、`pass / fail` と、src/lib.rs が検査の前と同じ中身のまま
+# 残ったか(`untouched / rewritten`)を `:` でつないで出す。
+#
+# $1 クレートのディレクトリ
+# $2 検査の名前(`rust-checks.sh` の第 1 引数)
+source_outcome_of() {
+  local crate="$1" check="$2" result=pass source_state=rewritten
+  cp "$crate/src/lib.rs" "$crate/../lib.rs.before" || exit 1
+  (cd "$crate" && bash "$detector" "$check") >/dev/null 2>&1 || result=fail
+  cmp -s "$crate/../lib.rs.before" "$crate/src/lib.rs" && source_state=untouched
+  printf '%s:%s' "$result" "$source_state"
+}
+
+# クレートの外(置き場の根)をカレントにして検査を引数のまま走らせ、終了コードを出す。
+#
+# $@ `rust-checks.sh` に渡す引数
+exit_status_of() {
+  local status=0
+  (cd "$work" && bash "$detector" "$@") >/dev/null 2>&1 || status=$?
+  echo "$status"
+}
+
+# 整形済みのソース。
+formatted_source='pub fn one() -> i32 {
+    1
+}
+'
+
 report fail:kept:locked:hint "$(outcome_of "$(crate_missing_from_lock_of r1)" clippy)" \
   "R1 lock に無い依存があると、clippy は lock を書き換えず --locked で止まり、resolve.sh を案内して落ちる"
 report fail:kept:locked:hint "$(outcome_of "$(crate_missing_from_lock_of r2)" doc)" \
   "R2 lock に無い依存があると、doc は lock を書き換えず --locked で止まり、resolve.sh を案内して落ちる"
 report fail:kept:locked:hint "$(outcome_of "$(crate_missing_from_lock_of r3)" test)" \
   "R3 lock に無い依存があると、test は lock を書き換えず --locked で止まり、resolve.sh を案内して落ちる"
+report pass:kept:-:- "$(outcome_of "$(crate_in_lock_of r4)" clippy)" \
+  "R4 lock が依存と合っていれば、clippy は lock を書き換えず通る"
+report pass:kept:-:- "$(outcome_of "$(crate_in_lock_of r5)" doc)" \
+  "R5 lock が依存と合っていれば、doc は lock を書き換えず通る"
+report pass:kept:-:- "$(outcome_of "$(crate_in_lock_of r6)" test)" \
+  "R6 lock が依存と合っていれば、test は lock を書き換えず通る"
+r7="$(crate_missing_from_lock_of r7)"
+printf '%s' "$formatted_source" >"$r7/src/lib.rs"
+report pass:kept:-:- "$(outcome_of "$r7" fmt)" \
+  "R7 lock に無い依存があっても、fmt は lock を書き換えず通る"
+
+report 2 "$(exit_status_of)" "G1 検査の名前が無ければ exit 2"
+report 2 "$(exit_status_of lint)" "G1 知らない検査の名前なら exit 2"
+report fail:kept:-:- "$(outcome_of "$(crate_with_source_of g2 '/// [`hidden`] を呼ぶ。
+pub fn shown() {
+    hidden();
+}
+
+fn hidden() {}
+')" doc)" \
+  "G2 公開項目の doc から非公開項目へ intra-doc link を張ると、doc は落ちる"
+report fail:kept:-:- "$(outcome_of "$(crate_with_source_of g3 'pub fn one() -> i32 {
+    return 1;
+}
+')" clippy)" \
+  "G3 lib に clippy の警告があれば clippy は落ち、resolve.sh を案内しない"
+report fail:kept:-:- "$(outcome_of "$(crate_with_source_of g4 'pub fn one() -> i32 {
+    1
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn one_is_one() {
+        assert_eq!(super::one(), 1);
+        return;
+    }
+}
+')" clippy)" \
+  "G4 テストにだけ clippy の警告があっても clippy は落ちる"
+report fail:untouched "$(source_outcome_of "$(crate_with_source_of g5 'pub fn one()->i32{1}
+')" fmt)" \
+  "G5 整形されていなければ fmt は落ち、ファイルを書き換えない"
+report fail:kept:-:- "$(outcome_of "$(crate_with_source_of g6 '#[cfg(test)]
+mod tests {
+    #[test]
+    fn one_is_two() {
+        assert_eq!(1, 2);
+    }
+}
+')" test)" \
+  "G6 落ちるテストがあれば test は落ちる"
 
 exit "$cases_failed"

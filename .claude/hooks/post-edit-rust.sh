@@ -47,9 +47,12 @@ if ! fmt_output="$(cargo fmt --manifest-path "$manifest" 2>&1)"; then
   exit 2
 fi
 
-if ! clippy_output="$(cargo clippy --quiet --manifest-path "$manifest" --all-targets -- -D warnings 2>&1)"; then
+# clippy の引数は push 前の検査・CI と同じものを使う（`--locked` で、lock の外から依存を解決しない）。
+# 編集したクレートの Cargo.lock に依存が無い・Cargo.lock そのものが無いときも、ここで落ちて診断を返す。
+rust_checks="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../harness/githooks/lib" && pwd)/rust-checks.sh"
+if ! clippy_output="$(cd "$crate_dir" && CARGO_TERM_QUIET=true bash "$rust_checks" clippy 2>&1)"; then
   {
-    echo "post-edit-rust: cargo clippy が警告を出しました（${file_path}）"
+    echo "post-edit-rust: cargo clippy が通りませんでした（${file_path}）"
     printf '%s\n' "$clippy_output"
   } >&2
   exit 2

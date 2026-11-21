@@ -102,7 +102,9 @@ git の作業ツリーでない。**タイムアウトは 600 秒**（`cargo tes
 - **`rustfmt <file>` ではなく `cargo fmt`**。版（edition）を `Cargo.toml` と二重に持たない
 - **fmt が落ちたら clippy は走らせない。** fmt が落ちるのは構文が壊れているときで、
   clippy は同じエラーを重ねて出すだけ
-- clippy の引数は層 1 / 層 2 と同じ `--all-targets -- -D warnings`
+- clippy は層 1 / 層 2 と同じ `harness/githooks/lib/rust-checks.sh clippy` で走らせる（引数はそちらが持つ）
+- **`Cargo.lock` の無いクレートは、lock を作らずに clippy で落として診断を返す。** `--locked` は lock を
+  作らずに止まる
 
 **黙って通す条件**: `jq` か `cargo` が無い・`file_path` が `.rs` でない / 存在しない・
 上へ辿っても `Cargo.toml` が無い。**タイムアウトは 300 秒**。
