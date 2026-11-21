@@ -233,10 +233,10 @@ Issue: #<番号>
     **第 1 工程のコミット**で、第 2 工程以降はこれと比べる
   - **Red の種類(「作業の種類」)は、第 1 工程のコミットのメッセージの最後の段落(`Co-Authored-By` と
     同じ段落)に `TDD: red` の行を置く。** 最後の段落に無いとトレーラとして読まれない。拾うときは次の
-    コマンドで、印の無いコミットは出ない
+    コマンドで、印の無いコミットは出ない(CI の `red-commits.yml` と同じ拾い方)
 
     ```bash
-    git log --format='%h %(trailers:key=TDD,valueonly)' origin/main..HEAD | awk '$2 == "red"'
+    bash .github/scripts/red-commits.sh origin/main HEAD
     ```
 
   - **第 1 工程に書くものが無いなら、第 1 工程を省く。** 第 2 工程を起動する前の HEAD を第 1 工程のコミットの
@@ -371,9 +371,11 @@ diff_text | grep -cE 'Command::new|unsafe|include_str!'   # security-reviewer �
 - **Red の種類(「作業の種類」)は、本文に 2 つの工程のコミットを
   `- Red: <hash>` / `- Green: <hash…>` の形で並べる。** `- Red:` は 1 つだけ(ブランチに Red は 1 つ。フェーズ 5)。
   第 1 工程を省いたなら `- Red: 無し(<理由>)`。
-  読む人は Red のコミットだけを取り出して、テストが落ちることを確かめる。squash / rebase でマージしても
+  CI(`red-commits.yml`)が Red のコミットを確かめる(何を確かめるかは `.github/scripts/check-red-commits.sh` の冒頭)。
+  走らせるのはマージコミットではなく PR の先端なので、main より遅れていて先端が通らないなら main を取り込む。
+  読む人も `red-commits.sh` で Red のコミットを取り出せる。squash / rebase でマージしても
   PR の枝は `refs/pull/<PR 番号>/head` から取り出せるので、マージの方式の設定は変えない
-- CI(fmt / clippy / doc / test / ハーネスの検査)を通す。push 前の検査や CI が落ちたら、直しは
+- CI(fmt / clippy / doc / test / ハーネスの検査 / Red のコミット)を通す。push 前の検査や CI が落ちたら、直しは
   種類と工程と一緒に `implementer` に渡す(判断を伴わない自動修正コマンドだけは親が走らせてよい →「役割の分担」)
 
 **push の前に、まずフックが発火する環境かを確かめ、続けて git hooks と同じ検査を

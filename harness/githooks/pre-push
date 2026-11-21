@@ -46,6 +46,7 @@ run_check "pre-push の結果行の判定表" bash harness/githooks/lib/check-ta
 run_check "カナリアのテスト" bash .claude/hooks/hook-canary-test.sh
 run_check "セッション URL の通知のテスト" bash .claude/hooks/session-url-notice-test.sh
 
+# CI の Red のコミットの検査(.github/workflows/red-commits.yml)の判定表。git と bash だけで走るので飛ばさない。
 run_check "Red のコミットの検査の判定表" bash .github/scripts/red-commits-cases.sh
 
 # jq を使うフックと CI のスクリプトのテスト。jq が無い環境では判定が変わっていなくても落ちるので飛ばす。
