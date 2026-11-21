@@ -1,0 +1,84 @@
+# PR で変えた行に変異を入れ、テストで落ちない（生き残る）変異があれば落とす。
+# 手元での走らせ方と、結果の読み方・生き残りを意図して許すときの書き方は harness/mutants/README.md。
+#
+# Why not（rust.yml のジョブにする）: 走らせるのは PR だけなので、rust.yml では main への push を `if:` で外すことになる。
+# 条件を書き違えると黙って skipped になり、`if:` で skipped になったジョブは必須チェックでも Success と報告される。
+# Why not（pre-push に入れる）: CI の harness ジョブも pre-push を走らせるので、導入が `Mutants` と合わせて 2 回になる。
+# 差分の基点も pre-push の stdin の sha にすることになり、新しいブランチの初回 push では 0 埋めで決まらない。
+#
+# ci-trace.yml の `workflows:` に載せ、実行時間を追ってキャッシュを入れる時期の判断材料にする。
+name: Mutants
+
+on:
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  # 版はここ 1 か所。上げ方は harness/mutants/README.md「版の上げ方」。
+  MUTANTS_INSTALL_VERSION: "27.1.0"
+
+jobs:
+  mutants:
+    name: 差分の行の変異
+    runs-on: ubuntu-latest
+    steps:
+      # pull_request ではマージコミットを取り出す。1 つ目の親が main の先端なので、2 世代あれば
+      # `git diff HEAD^1 HEAD` が「この PR が main へ持ち込む差分」になる。
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 2
+
+      # rust.yml の check ジョブと同じ入れ方（理由もそちら）。
+      - name: Rust ツールチェーン
+        run: |
+          rustup update --no-self-update stable
+          rustup default stable
+
+      # Why: `cargo install` は `global-min-publish-age` を見ない（harness/deps/README.md「道具の cooldown」）。
+      - name: 道具の cooldown
+        run: bash harness/deps/tool-cooldown.sh cargo-mutants "$MUTANTS_INSTALL_VERSION"
+
+      # --locked: 同梱の Cargo.lock の版で入れる。理由は harness/deps/README.md「道具の cooldown」。
+      # Why not（キャッシュ）: 導入は約 1 分。版とツールチェーンで鍵を切る手間と復元漏れのほうが大きい。遅くなってから入れる。
+      - name: cargo-mutants
+        run: cargo install cargo-mutants --locked --version "$MUTANTS_INSTALL_VERSION"
+
+      - name: PR の差分
+        run: git diff HEAD^1 HEAD > "$RUNNER_TEMP/pr.diff"
+
+      # rust.yml の check を待たない（ワークフローをまたいで needs は書けない）。変異前の木でテストが
+      # 落ちたときも、下の終了コードの照合で落ちる。
+      # 合否は missed.txt で決める。理由と終了コードの読み方は harness/mutants/README.md「結果の読み方」。
+      - name: cargo mutants
+        run: |
+          status=0
+          cargo mutants --in-diff "$RUNNER_TEMP/pr.diff" --annotations github || status=$?
+          missed=mutants.out/missed.txt
+          if [ -s "$missed" ]; then
+            echo "::error::テストで落ちない変異が $(grep -c '' "$missed") 件残った"
+            cat "$missed"
+            exit 1
+          fi
+          case "$status" in
+            0 | 3) ;;
+            *)
+              echo "::error::cargo mutants が終了コード $status で終わった"
+              exit 1
+              ;;
+          esac
+
+      # always: 生き残りで落ちたときこそ要る。Rust を変えない差分では mutants.out が作られない。
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: mutants-out
+          path: mutants.out
+          if-no-files-found: ignore
+          retention-days: 7
