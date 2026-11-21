@@ -41,7 +41,7 @@ tightrope の記録にまだ根拠が無いものは持ってきていない（`
 | `lib/firings-log.sh` | `record-firings.sh` / `block-parent-session-edit.sh` | 発火ログのパスを組み立てる `firings_log_path <session_id>` |
 | `lib/cases-report.sh` | `lib/verification-agent-cases.sh` / `lib/parent-session-edit-cases.sh` / `lib/cases-report-cases.sh` / `harness/records/count-cases.sh` / `harness/githooks/lib/*-cases.sh` / `harness/deps/tool-cooldown-cases.sh` / `.github/scripts/*-cases.sh` | 判定表が共有する、判定の読み取り（`decide` / `decide_by_permission` / `hook_verdict_by_permission` / `normalize_miss`）と報告（`report` / `cases_failed`）と、判定表の最後の文の照合（`last_statement` / `report_exits_with_cases_failed`） |
 | `lib/cases-report-cases.sh` | `harness/githooks/pre-push` | `cases-report.sh` 自身の判定表。`cases-report.sh` を source する判定表の最後の文が `exit "$cases_failed"` かも見る |
-| `lib/cases-fixtures.sh` | `lib/verification-agent-cases.sh` / `lib/parent-session-edit-cases.sh` / `harness/githooks/lib/test-placement-cases.sh` / `harness/githooks/lib/test-file-length-cases.sh` / `.github/scripts/red-commits-cases.sh` / `.github/scripts/lock-publish-age-cases.sh` / `harness/deps/tool-cooldown-cases.sh` | 判定表が共有する、ケースの前提の置き方（サブエージェントの中の呼び出しの入力、使い捨ての git リポジトリへの入り方、偽の sparse index への版の置き方など） |
+| `lib/cases-fixtures.sh` | `lib/verification-agent-cases.sh` / `lib/parent-session-edit-cases.sh` / `harness/githooks/lib/test-placement-cases.sh` / `harness/githooks/lib/test-file-length-cases.sh` / `.github/scripts/red-commits-cases.sh` / `.github/scripts/lock-publish-age-cases.sh` / `harness/deps/tool-cooldown-cases.sh` / `harness/githooks/lib/rust-checks-cases.sh` / `post-edit-rust-test.sh` | 判定表が共有する、ケースの前提の置き方（サブエージェントの中の呼び出しの入力、使い捨ての git リポジトリへの入り方、偽の sparse index への版の置き方、cargo を走らせる使い捨てのクレートの置き方など） |
 | `lib/verification-agent-cases.sh` | `harness/githooks/pre-push` | `track-verification-agent-activity.sh` と `block-git-during-verification-agent.sh` へ呼び出しを順に流し、起動の拒否と git 操作の拒否が期待どおりかを報告する |
 | `lib/parent-session-edit-cases.sh` | `harness/githooks/pre-push` | 本物の `record-firings.sh` に発火ログを書かせてから `block-parent-session-edit.sh` へ Edit / Write を流し、親の編集の拒否と素通りが期待どおりかを報告する |
 
@@ -102,7 +102,7 @@ git の作業ツリーでない。**タイムアウトは 600 秒**（`cargo tes
 - **`rustfmt <file>` ではなく `cargo fmt`**。版（edition）を `Cargo.toml` と二重に持たない
 - **fmt が落ちたら clippy は走らせない。** fmt が落ちるのは構文が壊れているときで、
   clippy は同じエラーを重ねて出すだけ
-- clippy の引数は層 1 / 層 2 と同じ `--all-targets -- -D warnings`
+- clippy は層 1 / 層 2 と同じ `harness/githooks/lib/rust-checks.sh clippy` で走らせる（引数と lock の扱いはそちらが持つ）
 
 **黙って通す条件**: `jq` か `cargo` が無い・`file_path` が `.rs` でない / 存在しない・
 上へ辿っても `Cargo.toml` が無い。**タイムアウトは 300 秒**。

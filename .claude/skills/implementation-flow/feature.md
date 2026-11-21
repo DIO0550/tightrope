@@ -18,8 +18,8 @@
   既存のテストの書き換えを置かない。Green で書き換えると、書き換えた後のテストは落ちたのを確かめていない
 - **同じテストターゲットに a と b を混ぜない。** コンパイルエラーがあると、`cargo test` は
   `--no-fail-fast` を付けてもテストを 1 つも走らせないので、a が計画どおりに落ちるかを見られない。
-  ターゲット(`--lib` の単体テストと、`tests/` のファイルごと)を分ければ、`cargo test --lib` /
-  `cargo test --test <名前>` で片方ずつ走らせられる
+  ターゲット(`--lib` の単体テストと、`tests/` のファイルごと)を分ければ、`cargo test --locked --lib` /
+  `cargo test --locked --test <名前>` で片方ずつ走らせられる
 
 ### 第 1 工程に許す配線
 
@@ -46,7 +46,7 @@
 
 1. **第 1 工程: 計画で Red に入れたテストと、上の配線だけを書かせる。** 実装はさせない
    - Red に a と b の両方があるときは、`implementer` が `pre-push` の出力に加えて、ターゲットごとに
-     `cargo test --lib` / `cargo test --test <名前>` を走らせた出力も返す。`pre-push` の `cargo test` は
+     `cargo test --locked --lib` / `cargo test --locked --test <名前>` を走らせた出力も返す。`pre-push` の `cargo test` は
      b のコンパイルエラーで止まるので、親は a の落ち方をターゲットごとの出力で照らす
    - b は、エラーが計画に書いた API を指しているかを次の表で見る
 

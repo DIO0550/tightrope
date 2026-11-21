@@ -1,0 +1,3 @@
+# cargo-mutants が各段(check・ビルド・テスト)で走らせる cargo に足す引数。
+# --locked: Cargo.lock の外から依存を解決しない(harness/deps/README.md「lock の外で解決しない」)。
+additional_cargo_args = ["--locked"]

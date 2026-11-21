@@ -71,7 +71,9 @@ bash harness/deps/tool-cooldown.sh cargo-mutants "$version" && cargo install car
 起こし、テストがタイムアウトで止めている = 捕まえている）。
 
 終了コードは `missed.txt` の照合の後に見て、0（すべて捕まえた）と 3（タイムアウトがあった）以外なら落ちる。
-代表は 4（変異を入れる前の木でテストが落ちた）と 5（差分と木が食い違う）。
+代表は 4（変異を入れる前の木でビルドかテストが落ちた）と 5（差分と木が食い違う）。Cargo.toml の依存が
+`Cargo.lock` に無いときも、`.cargo/mutants.toml` の `--locked` で変異を入れる前の木のビルドが落ちて 4 になる
+（lock の入れ直し方は [`harness/deps/README.md`](../deps/README.md)「lock の外で解決しない」）。
 生き残りとタイムアウトが両方あると、終了コードは 2（生き残り）ではなく 3 になる。
 終了コードを合否に使わないのはこのため。
 

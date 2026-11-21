@@ -50,6 +50,25 @@ bash harness/deps/tool-cooldown-cases.sh   # 判定表
 - **`.crate` に `Cargo.lock` を同梱している版を選ぶ。** `--locked` が公開時の lock で入れ、依存の版の
   公開が本体より前になるので、本体の期間が依存全体の下限になる。lock が無いと依存は入れる時点で解決される
 
+## lock の外で解決しない
+
+**依存を解決するのは `resolve.sh` だけにし、検査とビルドは `Cargo.lock` にある版だけで走らせる。** 素の
+`cargo test` などは、Cargo.toml の依存が lock に無ければその場で解決して lock を書き換えるので、`resolve.sh` を
+通らない解決の経路になる。`harness/githooks/lib/rust-checks.sh` を通る検査（呼び出し元はその冒頭）、CI の msrv
+ジョブ、cargo-mutants（`.cargo/mutants.toml`）は `--locked` で走り、lock に無い依存がある・lock が無いときは
+lock を書き換えずに落ちる。
+
+落ちたら `resolve.sh` で lock に足りない依存だけを入れ、入れた lock をコミットする。`update --workspace` は、
+lock に既にある依存の版を上げない（lock に無いものだけを解決する）。`resolve.sh` はリポジトリの根へ移ってから
+走るので、根でないクレートは `--manifest-path` でその `Cargo.toml` を名指しする（`rust-checks.sh` の案内はそれを付けて出す）。
+
+```bash
+bash harness/deps/resolve.sh update --workspace
+bash harness/deps/resolve.sh update --workspace --manifest-path <クレート>/Cargo.toml   # 根でないクレート
+```
+
+- **`cargo fmt` には付けない。** 依存を解決しないので、lock に無い依存があっても lock を書き換えない
+
 ## lock の公開からの期間（PR での事後の検知）
 
 **PR で `Cargo.lock` に足した crates.io の版は、CI（`.github/workflows/lock-publish-age.yml`）が、その版を
