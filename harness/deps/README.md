@@ -36,6 +36,20 @@ bash harness/deps/resolve.sh update -p <crate> --precise <公開間もないバ�
 curl -s https://index.crates.io/cl/ap/clap | tail -1 | grep -o '"pubtime":"[^"]*"'
 ```
 
+## 道具の cooldown
+
+**`cargo install` は `global-min-publish-age` を見ない。** `cargo install` で入れる道具は、
+入れる前に `harness/deps/tool-cooldown.sh` を通す。公開から期間が経っていないとき、設定・index・版の
+どれかが読めないときに落ちる。
+
+```bash
+bash harness/deps/tool-cooldown.sh cargo-mutants <版> && cargo install cargo-mutants --locked --version <版>
+bash harness/deps/tool-cooldown-cases.sh   # 判定表
+```
+
+- **`.crate` に `Cargo.lock` を同梱している版を選ぶ。** `--locked` が公開時の lock で入れ、依存の版の
+  公開が本体より前になるので、本体の期間が依存全体の下限になる。lock が無いと依存は入れる時点で解決される
+
 ## 前提として引き受けること
 
 - **既存の `Cargo.lock` は免除される。** cooldown は入口のフィルタで、既に lock にあるバージョンは

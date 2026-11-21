@@ -39,9 +39,9 @@ tightrope の記録にまだ根拠が無いものは持ってきていない（`
 | `lib/gh-pr-merge-command.sh` | `post-merge-review.sh` | 区切った 1 つずつの先頭が `gh pr merge` か（`--auto` / `--disable-auto` は除く）を見る |
 | `lib/hook-input.sh` | `record-firings.sh` / `track-verification-agent-activity.sh` / `block-git-during-verification-agent.sh` / `block-parent-session-edit.sh` | 標準入力の JSON から文字列の値を取り出す `extract`。jq を使わず bash の組み込みだけで読む |
 | `lib/firings-log.sh` | `record-firings.sh` / `block-parent-session-edit.sh` | 発火ログのパスを組み立てる `firings_log_path <session_id>` |
-| `lib/cases-report.sh` | `lib/verification-agent-cases.sh` / `lib/parent-session-edit-cases.sh` / `lib/cases-report-cases.sh` / `harness/records/count-cases.sh` / `harness/githooks/lib/check-tally-cases.sh` / `.github/scripts/*-cases.sh` | 判定表が共有する、判定の読み取り（`decide` / `decide_by_permission` / `hook_verdict_by_permission` / `normalize_miss`）と報告（`report` / `cases_failed`）と、判定表の最後の文の照合（`last_statement` / `report_exits_with_cases_failed`） |
+| `lib/cases-report.sh` | `lib/verification-agent-cases.sh` / `lib/parent-session-edit-cases.sh` / `lib/cases-report-cases.sh` / `harness/records/count-cases.sh` / `harness/githooks/lib/*-cases.sh` / `harness/deps/tool-cooldown-cases.sh` / `.github/scripts/*-cases.sh` | 判定表が共有する、判定の読み取り（`decide` / `decide_by_permission` / `hook_verdict_by_permission` / `normalize_miss`）と報告（`report` / `cases_failed`）と、判定表の最後の文の照合（`last_statement` / `report_exits_with_cases_failed`） |
 | `lib/cases-report-cases.sh` | `harness/githooks/pre-push` | `cases-report.sh` 自身の判定表。`cases-report.sh` を source する判定表の最後の文が `exit "$cases_failed"` かも見る |
-| `lib/cases-fixtures.sh` | `lib/verification-agent-cases.sh` / `lib/parent-session-edit-cases.sh` | 判定表が共有する、ケースの前提の置き方（サブエージェントの中の呼び出しの入力など） |
+| `lib/cases-fixtures.sh` | `lib/verification-agent-cases.sh` / `lib/parent-session-edit-cases.sh` / `harness/githooks/lib/test-placement-cases.sh` / `harness/githooks/lib/test-file-length-cases.sh` | 判定表が共有する、ケースの前提の置き方（サブエージェントの中の呼び出しの入力など） |
 | `lib/verification-agent-cases.sh` | `harness/githooks/pre-push` | `track-verification-agent-activity.sh` と `block-git-during-verification-agent.sh` へ呼び出しを順に流し、起動の拒否と git 操作の拒否が期待どおりかを報告する |
 | `lib/parent-session-edit-cases.sh` | `harness/githooks/pre-push` | 本物の `record-firings.sh` に発火ログを書かせてから `block-parent-session-edit.sh` へ Edit / Write を流し、親の編集の拒否と素通りが期待どおりかを報告する |
 

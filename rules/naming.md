@@ -39,7 +39,7 @@ let tightly_coupled = strength >= Strength::Model && distance >= Distance::Other
 if tightly_coupled && volatility.is_high() { ... }
 ```
 
-条件が 2 つ以上要る理由がコードから読み取れないなら、変数のそばに Why を残す。
+条件が 2 つ以上要る理由がコードから読み取れないなら、その理由は Issue に書く。
 単独の条件（`dependencies.is_empty()` など）はそのまま置いてよい。
 
 ## 内容を表さない汎用語を使わない
@@ -65,7 +65,7 @@ if tightly_coupled && volatility.is_high() { ... }
 | `module` | 結合を測る単位。ファイル・ディレクトリ・パッケージのどれを指すかは、最初に置いた回にここへ書く |
 | `dependency` | ある `module` から別の `module` への依存 1 本。`from` / `to` を持つ |
 | `strength` | 統合強度。`Intrusive` / `Functional` / `Model` / `Contract` の 4 つ |
-| `distance` | 距離。同一ファイル → 同一ディレクトリ → 同一パッケージ → 別パッケージ → 別チーム |
+| `distance` | 距離。`SameDirectory` < `OtherDirectory` < `OtherPackage` の 3 段（近い順。package の決め方は `docs/report/distance-volatility-spec.md`「距離」） |
 | `volatility` | 変動性。git 履歴の変更頻度 |
 | `refs` | 依存ごとの参照箇所の数（LSP の references で数える） |
 | `verdict` | 判定の結果（`risk` / `warn` / `tolerated` / `ok`） |
