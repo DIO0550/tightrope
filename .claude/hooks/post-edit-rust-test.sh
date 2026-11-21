@@ -158,8 +158,8 @@ place_locked_crate "$lockless"
 rm "${lockless}/Cargo.lock"
 printf '%s' "$clean_source" > "${lockless}/src/lib.rs"
 
-expect_result "Cargo.lock の無いクレートでは 2 で終わる" \
-  2 "" "" "$(payload_of "${lockless}/src/lib.rs")"
+expect_result "Cargo.lock の無いクレートでは、--locked で止まった診断を返して 2 で終わる" \
+  2 "--locked was passed to prevent this" "" "$(payload_of "${lockless}/src/lib.rs")"
 
 lock_reason=""
 [ ! -e "${lockless}/Cargo.lock" ] || lock_reason="Cargo.lock が作られた"

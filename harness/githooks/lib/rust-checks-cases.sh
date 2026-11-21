@@ -5,12 +5,14 @@
 # ケースごとに path 依存を持つ使い捨てのクレートを組み(ネットワークは使わない)、そのディレクトリを
 # カレントにして検査を呼ぶ。1 ケースの結果は次の 4 つを `:` でつないだ要約にして照らす。
 #   pass / fail       検査の終了コードが 0 か
-#   kept / changed    Cargo.lock が検査の前と同じ中身のまま残ったか
+#   kept / changed    Cargo.lock が検査の前と同じ中身のまま残ったか(検査の前に無ければ、無いまま残ったか)
 #   locked / -        標準出力か標準エラーに `--locked was passed to prevent this` が出たか
 #   hint / -          標準エラーに、そのクレートの Cargo.toml を名指しして `harness/deps/resolve.sh update --workspace`
 #                     を案内する行があるか(置き場はリポジトリの根ではないので `--manifest-path` が付く)
-# 例外は 3 つ。G2〜G6 は path 依存を持たないクレートで組む。G1 は置き場の根で(クレートを組まずに)走らせ、終了コードを照らす。
-# G5 は終了コードと、src/lib.rs が検査の前と同じ中身のまま残ったか(`kept / changed`)を照らす。
+# 例外は 5 つ。G2〜G6 は path 依存を持たないクレートで組む。G1 は置き場の根で(クレートを組まずに)走らせ、終了コードを照らす。
+# G5 は終了コードと、src/lib.rs が検査の前と同じ中身のまま残ったか(`kept / changed`)を照らす。R8 は path 依存も
+# Cargo.lock も持たないクレートで組む。R9 は手元の cargo の代わりに、cargo 1.85〜1.92 の文言で止まる偽の cargo で走らせる
+# (判定表は手元の toolchain でしか走らないので、旧版の文言は偽の cargo でしか出せない)。
 #
 # 使い方: bash harness/githooks/lib/rust-checks-cases.sh
 # 食い違ったケースがあれば exit 1(`ok` だけなら期待どおり)。
@@ -41,12 +43,19 @@ crate_with_unlocked_dep_of() {
 # $1 クレートのディレクトリ
 # $2 検査の名前(`rust-checks.sh` の第 1 引数)
 outcome_of() {
-  local crate="$1" check="$2" status=0 result lock_state=changed locked=- hint=-
-  cp "$crate/Cargo.lock" "$crate/../Cargo.lock.before" || exit 1
+  local crate="$1" check="$2" status=0 result lock_state=changed locked=- hint=- had_lock=no
+  [ -e "$crate/Cargo.lock" ] && had_lock=yes
+  if [ "$had_lock" = yes ]; then
+    cp "$crate/Cargo.lock" "$crate/../Cargo.lock.before" || exit 1
+  fi
   (cd "$crate" && bash "$script" "$check") >"$crate/../stdout" 2>"$crate/../stderr" || status=$?
   result=pass
   [ "$status" -eq 0 ] || result=fail
-  cmp -s "$crate/../Cargo.lock.before" "$crate/Cargo.lock" && lock_state=kept
+  if [ "$had_lock" = yes ]; then
+    cmp -s "$crate/../Cargo.lock.before" "$crate/Cargo.lock" && lock_state=kept
+  else
+    [ -e "$crate/Cargo.lock" ] || lock_state=kept
+  fi
   cat "$crate/../stdout" "$crate/../stderr" | grep -qF -e '--locked was passed to prevent this' && locked=locked
   grep -qF "harness/deps/resolve.sh update --workspace --manifest-path $crate/Cargo.toml " "$crate/../stderr" && hint=hint
   printf '%s:%s:%s:%s' "$result" "$lock_state" "$locked" "$hint"
@@ -61,6 +70,39 @@ crate_with_locked_dep_of() {
   add_path_dep "$root/app" "$root/dep" || exit 1
   (cd "$root/app" && cargo generate-lockfile --offline --quiet) || exit 1
   echo "$root/app"
+}
+
+# 依存も Cargo.lock も持たないクレートを置き、そのディレクトリを出す。
+#
+# $1 ケースの名前(置き場のディレクトリ名)
+crate_without_lock_of() {
+  local root="$work/$1"
+  place_locked_crate "$root/app" app || exit 1
+  rm "$root/app/Cargo.lock" || exit 1
+  echo "$root/app"
+}
+
+# clippy / doc / test では cargo 1.85〜1.92 の文言(`the lock file <path>/Cargo.lock needs to be updated but --locked
+# was passed to prevent this`)を標準エラーに出して 101 で終わり、それ以外(案内を組むときの `locate-project`)は
+# 手元の cargo へ渡す偽の cargo を置き、PATH の先頭に足す値を出す。
+#
+# $1 置き場のディレクトリ(その下の `old-cargo-bin/` に置く)
+old_cargo_path_prefix() {
+  local real_cargo
+  real_cargo="$(command -v cargo)" || exit 1
+  mkdir -p "$1/old-cargo-bin" || exit 1
+  cat >"$1/old-cargo-bin/cargo" <<EOF || exit 1
+#!/usr/bin/env bash
+case "\$1" in
+  clippy | doc | test)
+    printf 'error: the lock file %s/Cargo.lock needs to be updated but --locked was passed to prevent this\n' "\$PWD" >&2
+    exit 101
+    ;;
+esac
+exec "$real_cargo" "\$@"
+EOF
+  chmod +x "$1/old-cargo-bin/cargo" || exit 1
+  printf '%s:' "$1/old-cargo-bin"
 }
 
 # 依存を持たず、src/lib.rs に渡したソースを置いたクレートを、lock を添えて置き、そのディレクトリを出す。
@@ -118,6 +160,12 @@ r7="$(crate_with_unlocked_dep_of r7)"
 printf '%s' "$formatted_source" >"$r7/src/lib.rs"
 report pass:kept:-:- "$(outcome_of "$r7" fmt)" \
   "R7 lock に無い依存があっても、fmt は lock を書き換えず通る"
+report fail:kept:locked:hint "$(outcome_of "$(crate_without_lock_of r8)" clippy)" \
+  "R8 lock が無ければ、clippy は lock を作らず --locked で止まり、resolve.sh を案内して落ちる"
+r9="$(crate_with_unlocked_dep_of r9)"
+r9_path_prefix="$(old_cargo_path_prefix "$work/r9")"
+report fail:kept:locked:hint "$(PATH="$r9_path_prefix$PATH" outcome_of "$r9" clippy)" \
+  "R9 cargo 1.85〜1.92 の文言で --locked に止められても、resolve.sh を案内して落ちる"
 
 report 2 "$(exit_status_of)" "G1 検査の名前が無ければ exit 2"
 report 2 "$(exit_status_of lint)" "G1 知らない検査の名前なら exit 2"
