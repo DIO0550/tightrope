@@ -19,7 +19,7 @@ fi
 # fmt だけを走らせる。clippy / test は重く、commit のたびに走らせると
 # 小さく刻む commit が避けられる。そちらは pre-push が持つ。
 echo "pre-commit: fmt"
-if ! cargo fmt --check; then
+if ! bash harness/githooks/lib/rust-checks.sh fmt; then
   echo "pre-commit: 整形の差分があります。'cargo fmt' をかけて、直した分を stage し直してください" >&2
   exit 1
 fi

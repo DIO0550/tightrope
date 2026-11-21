@@ -6,10 +6,11 @@
 # カレントにして検査を呼ぶ。1 ケースの結果は次の 4 つを `:` でつないだ要約にして照らす。
 #   pass / fail       検査の終了コードが 0 か
 #   kept / changed    Cargo.lock が検査の前と同じ中身のまま残ったか
-#   locked / -        標準出力か標準エラーに `because --locked was passed` が出たか
-#   hint / -          標準エラーに `harness/deps/resolve.sh` を含む行があるか
-# 例外は 3 つ。G2〜G6 は path 依存を持たないクレートで組む。G1 はクレートの外で走らせ、終了コードを照らす。
-# G5 は終了コードと、src/lib.rs が検査の前と同じ中身のまま残ったか(`untouched / rewritten`)を照らす。
+#   locked / -        標準出力か標準エラーに `--locked was passed to prevent this` が出たか
+#   hint / -          標準エラーに、そのクレートの Cargo.toml を名指しして `harness/deps/resolve.sh update --workspace`
+#                     を案内する行があるか(置き場はリポジトリの根ではないので `--manifest-path` が付く)
+# 例外は 3 つ。G2〜G6 は path 依存を持たないクレートで組む。G1 は置き場の根で(クレートを組まずに)走らせ、終了コードを照らす。
+# G5 は終了コードと、src/lib.rs が検査の前と同じ中身のまま残ったか(`kept / changed`)を照らす。
 #
 # 使い方: bash harness/githooks/lib/rust-checks-cases.sh
 # 食い違ったケースがあれば exit 1(`ok` だけなら期待どおり)。
@@ -17,32 +18,21 @@
 set -uo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-detector="$here/rust-checks.sh"
-work="$(mktemp -d)" || exit 1
-trap 'rm -rf "$work"' EXIT
+script="$here/rust-checks.sh"
 
 source "$here/../../../.claude/hooks/lib/cases-report.sh"
+source "$here/../../../.claude/hooks/lib/cases-fixtures.sh"
 
-# 依存を持たないクレートを置く。`[workspace]` を置くのは、置き場より上の階層の Cargo.toml を cargo が
-# ワークスペースの根と取り違えないため。
-#
-# $1 クレートのディレクトリ
-# $2 パッケージ名
-place_crate() {
-  mkdir -p "$1/src"
-  printf '[package]\nname = "%s"\nversion = "0.1.0"\nedition = "2024"\n\n[workspace]\n' "$2" >"$1/Cargo.toml"
-  : >"$1/src/lib.rs"
-}
+work="$(make_crate_workdir)" || exit 1
+trap 'rm -rf "$work"' EXIT
 
 # lock を作ってから、lock に無い path 依存を Cargo.toml に足したクレートを置き、そのディレクトリを出す。
 #
 # $1 ケースの名前(置き場のディレクトリ名)
-crate_missing_from_lock_of() {
+crate_with_unlocked_dep_of() {
   local root="$work/$1"
-  place_crate "$root/dep" dep
-  place_crate "$root/app" app
-  (cd "$root/app" && cargo generate-lockfile --offline --quiet) || exit 1
-  printf '\n[dependencies]\ndep = { path = "../dep" }\n' >>"$root/app/Cargo.toml"
+  place_locked_crate "$root/app" app || exit 1
+  add_path_dep "$root/app" "$root/dep" || exit 1
   echo "$root/app"
 }
 
@@ -53,23 +43,22 @@ crate_missing_from_lock_of() {
 outcome_of() {
   local crate="$1" check="$2" status=0 result lock_state=changed locked=- hint=-
   cp "$crate/Cargo.lock" "$crate/../Cargo.lock.before" || exit 1
-  (cd "$crate" && bash "$detector" "$check") >"$crate/../stdout" 2>"$crate/../stderr" || status=$?
+  (cd "$crate" && bash "$script" "$check") >"$crate/../stdout" 2>"$crate/../stderr" || status=$?
   result=pass
   [ "$status" -eq 0 ] || result=fail
   cmp -s "$crate/../Cargo.lock.before" "$crate/Cargo.lock" && lock_state=kept
-  cat "$crate/../stdout" "$crate/../stderr" | grep -qF 'because --locked was passed' && locked=locked
-  grep -qF 'harness/deps/resolve.sh' "$crate/../stderr" && hint=hint
+  cat "$crate/../stdout" "$crate/../stderr" | grep -qF -e '--locked was passed to prevent this' && locked=locked
+  grep -qF "harness/deps/resolve.sh update --workspace --manifest-path $crate/Cargo.toml " "$crate/../stderr" && hint=hint
   printf '%s:%s:%s:%s' "$result" "$lock_state" "$locked" "$hint"
 }
 
-# lock を作る前に path 依存を Cargo.toml に足した(lock が依存と合っている)クレートを置き、そのディレクトリを出す。
+# path 依存を Cargo.toml に足してから lock を作り直した(lock が依存と合っている)クレートを置き、そのディレクトリを出す。
 #
 # $1 ケースの名前(置き場のディレクトリ名)
-crate_in_lock_of() {
+crate_with_locked_dep_of() {
   local root="$work/$1"
-  place_crate "$root/dep" dep
-  place_crate "$root/app" app
-  printf '\n[dependencies]\ndep = { path = "../dep" }\n' >>"$root/app/Cargo.toml"
+  place_locked_crate "$root/app" app || exit 1
+  add_path_dep "$root/app" "$root/dep" || exit 1
   (cd "$root/app" && cargo generate-lockfile --offline --quiet) || exit 1
   echo "$root/app"
 }
@@ -80,31 +69,30 @@ crate_in_lock_of() {
 # $2 src/lib.rs の中身
 crate_with_source_of() {
   local root="$work/$1"
-  place_crate "$root/app" app
+  place_locked_crate "$root/app" app || exit 1
   printf '%s' "$2" >"$root/app/src/lib.rs"
-  (cd "$root/app" && cargo generate-lockfile --offline --quiet) || exit 1
   echo "$root/app"
 }
 
 # クレートのディレクトリをカレントにして検査を走らせ、`pass / fail` と、src/lib.rs が検査の前と同じ中身のまま
-# 残ったか(`untouched / rewritten`)を `:` でつないで出す。
+# 残ったか(`kept / changed`)を `:` でつないで出す。
 #
 # $1 クレートのディレクトリ
 # $2 検査の名前(`rust-checks.sh` の第 1 引数)
 source_outcome_of() {
-  local crate="$1" check="$2" result=pass source_state=rewritten
+  local crate="$1" check="$2" result=pass source_state=changed
   cp "$crate/src/lib.rs" "$crate/../lib.rs.before" || exit 1
-  (cd "$crate" && bash "$detector" "$check") >/dev/null 2>&1 || result=fail
-  cmp -s "$crate/../lib.rs.before" "$crate/src/lib.rs" && source_state=untouched
+  (cd "$crate" && bash "$script" "$check") >/dev/null 2>&1 || result=fail
+  cmp -s "$crate/../lib.rs.before" "$crate/src/lib.rs" && source_state=kept
   printf '%s:%s' "$result" "$source_state"
 }
 
-# クレートの外(置き場の根)をカレントにして検査を引数のまま走らせ、終了コードを出す。
+# 置き場の根をカレントにして検査を引数のまま走らせ、終了コードを出す。
 #
 # $@ `rust-checks.sh` に渡す引数
 exit_status_of() {
   local status=0
-  (cd "$work" && bash "$detector" "$@") >/dev/null 2>&1 || status=$?
+  (cd "$work" && bash "$script" "$@") >/dev/null 2>&1 || status=$?
   echo "$status"
 }
 
@@ -114,19 +102,19 @@ formatted_source='pub fn one() -> i32 {
 }
 '
 
-report fail:kept:locked:hint "$(outcome_of "$(crate_missing_from_lock_of r1)" clippy)" \
+report fail:kept:locked:hint "$(outcome_of "$(crate_with_unlocked_dep_of r1)" clippy)" \
   "R1 lock に無い依存があると、clippy は lock を書き換えず --locked で止まり、resolve.sh を案内して落ちる"
-report fail:kept:locked:hint "$(outcome_of "$(crate_missing_from_lock_of r2)" doc)" \
+report fail:kept:locked:hint "$(outcome_of "$(crate_with_unlocked_dep_of r2)" doc)" \
   "R2 lock に無い依存があると、doc は lock を書き換えず --locked で止まり、resolve.sh を案内して落ちる"
-report fail:kept:locked:hint "$(outcome_of "$(crate_missing_from_lock_of r3)" test)" \
+report fail:kept:locked:hint "$(outcome_of "$(crate_with_unlocked_dep_of r3)" test)" \
   "R3 lock に無い依存があると、test は lock を書き換えず --locked で止まり、resolve.sh を案内して落ちる"
-report pass:kept:-:- "$(outcome_of "$(crate_in_lock_of r4)" clippy)" \
+report pass:kept:-:- "$(outcome_of "$(crate_with_locked_dep_of r4)" clippy)" \
   "R4 lock が依存と合っていれば、clippy は lock を書き換えず通る"
-report pass:kept:-:- "$(outcome_of "$(crate_in_lock_of r5)" doc)" \
+report pass:kept:-:- "$(outcome_of "$(crate_with_locked_dep_of r5)" doc)" \
   "R5 lock が依存と合っていれば、doc は lock を書き換えず通る"
-report pass:kept:-:- "$(outcome_of "$(crate_in_lock_of r6)" test)" \
+report pass:kept:-:- "$(outcome_of "$(crate_with_locked_dep_of r6)" test)" \
   "R6 lock が依存と合っていれば、test は lock を書き換えず通る"
-r7="$(crate_missing_from_lock_of r7)"
+r7="$(crate_with_unlocked_dep_of r7)"
 printf '%s' "$formatted_source" >"$r7/src/lib.rs"
 report pass:kept:-:- "$(outcome_of "$r7" fmt)" \
   "R7 lock に無い依存があっても、fmt は lock を書き換えず通る"
@@ -160,7 +148,7 @@ mod tests {
 }
 ')" clippy)" \
   "G4 テストにだけ clippy の警告があっても clippy は落ちる"
-report fail:untouched "$(source_outcome_of "$(crate_with_source_of g5 'pub fn one()->i32{1}
+report fail:kept "$(source_outcome_of "$(crate_with_source_of g5 'pub fn one()->i32{1}
 ')" fmt)" \
   "G5 整形されていなければ fmt は落ち、ファイルを書き換えない"
 report fail:kept:-:- "$(outcome_of "$(crate_with_source_of g6 '#[cfg(test)]

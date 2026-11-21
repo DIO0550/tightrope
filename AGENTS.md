@@ -137,11 +137,11 @@ bash harness/deps/resolve.sh update
 ## Common Commands
 
 ```bash
-cargo build --locked                          # ビルド
-cargo run --locked -- <引数>                  # 実行
-cargo fmt                                     # フォーマット
-cargo clippy --locked --all-targets -- -D warnings   # Lint（テストコードも対象・警告をエラー扱い）
-cargo test --locked                           # テスト
+cargo build --locked                                    # ビルド
+cargo run --locked -- <引数>                            # 実行
+cargo fmt                                               # フォーマット
+cargo clippy --locked --all-targets -- -D warnings      # Lint（テストコードも対象・警告をエラー扱い）
+cargo test --locked                                     # テスト
 PRE_PUSH_REQUIRE_ALL=1 bash harness/githooks/pre-push   # push 前の検査をすべて（CI の harness ジョブと同じ）
-bash harness/records/count.sh                 # 分類ごとの再発の集計
+bash harness/records/count.sh                           # 分類ごとの再発の集計
 ```

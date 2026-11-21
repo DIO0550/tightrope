@@ -7,8 +7,8 @@ git ネイティブのフック置き場。`core.hooksPath` をここへ向け�
 
 | フック | 検査 |
 | --- | --- |
-| `pre-commit` | `cargo fmt --check`（整形だけのコミットを積まないため） |
-| `pre-push` | fmt / clippy / doc / test（cargo の引数は [`lib/rust-checks.sh`](lib/rust-checks.sh) が持つ。CI の check ジョブと編集後のフックも同じものを呼ぶ）、常時ロードのラチェット（`harness/records/count.sh --ratchet`）、ハーネス自身の判定表（`*-cases.sh` / `*-test.sh`） |
+| `pre-commit` | fmt（整形だけのコミットを積まないため。cargo の引数は [`lib/rust-checks.sh`](lib/rust-checks.sh) が持つ） |
+| `pre-push` | fmt / clippy / doc / test（cargo の引数は [`lib/rust-checks.sh`](lib/rust-checks.sh) が持つ）、常時ロードのラチェット（`harness/records/count.sh --ratchet`）、ハーネス自身の判定表（`*-cases.sh` / `*-test.sh`） |
 
 検査の一覧の原本は [`pre-push`](pre-push) 自身。ここ・スキル・CI へ写さない
 （CI の `harness` ジョブは `PRE_PUSH_REQUIRE_ALL=1 bash harness/githooks/pre-push` をそのまま走らせる）。

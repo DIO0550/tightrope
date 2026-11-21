@@ -54,14 +54,17 @@ bash harness/deps/tool-cooldown-cases.sh   # 判定表
 
 **依存を解決するのは `resolve.sh` だけにし、検査とビルドは `Cargo.lock` にある版だけで走らせる。** 素の
 `cargo test` などは、Cargo.toml の依存が lock に無ければその場で解決して lock を書き換えるので、`resolve.sh` を
-通らない解決の経路になる。push 前の検査・CI の check ジョブ・編集後のフックの cargo（引数は
-`harness/githooks/lib/rust-checks.sh` が持つ）、CI の msrv ジョブ、cargo-mutants（`.cargo/mutants.toml`）は
-`--locked` で走り、lock に無い依存がある・lock が無いときは lock を書き換えずに落ちる。
+通らない解決の経路になる。`harness/githooks/lib/rust-checks.sh` を通る検査（呼び出し元はその冒頭）、CI の msrv
+ジョブ、cargo-mutants（`.cargo/mutants.toml`）は `--locked` で走り、lock に無い依存がある・lock が無いときは
+lock を書き換えずに落ちる。
 
-落ちたら `resolve.sh` で lock を入れ直し、入れ直した lock をコミットする。
+落ちたら `resolve.sh` で lock に足りない依存だけを入れ、入れた lock をコミットする。`update --workspace` は、
+lock に既にある依存の版を上げない（lock に無いものだけを解決する）。`resolve.sh` はリポジトリの根へ移ってから
+走るので、根でないクレートは `--manifest-path` でその `Cargo.toml` を名指しする（`rust-checks.sh` の案内はそれを付けて出す）。
 
 ```bash
-bash harness/deps/resolve.sh update
+bash harness/deps/resolve.sh update --workspace
+bash harness/deps/resolve.sh update --workspace --manifest-path <クレート>/Cargo.toml   # 根でないクレート
 ```
 
 - **`cargo fmt` には付けない。** 依存を解決しないので、lock に無い依存があっても lock を書き換えない
