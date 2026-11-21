@@ -7,7 +7,7 @@
 - 対象: TypeScript / Rust / Java / Swift
 - 出力: `coupling.json` を元に terminal / markdown / html
 
-構想と全体構成は [`docs/tightrope-plan.md`](docs/tightrope-plan.md)。**まだ実装は無く、開発環境だけがある。**
+構想と全体構成は [`docs/tightrope-plan.md`](docs/tightrope-plan.md)。**まだ解析は実装されていない。**
 
 ## 開発
 
