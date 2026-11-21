@@ -173,8 +173,7 @@ if [ -n "$additions" ]; then
   base_packages="$(packages_of "$base")" || undecidable "$base の Cargo.lock の [[package]] を読めない"
   packages_only_in_head="$(packages_only_in_latter_of "$base_packages" "$head_packages")" ||
     undecidable "$base と $head の Cargo.lock の [[package]] を比べられない"
-  # 1 つ目の入力はファイル名で見分ける(`NR == FNR` は 1 つ目が空だと 2 つ目を 1 つ目と読む)。
-  to_check="$(awk -F "$sep" 'FILENAME == ARGV[1] { wanted[$0]; next } ($1 FS $2 FS $3) in wanted' \
+  to_check="$(awk -F "$sep" 'NR == FNR { wanted[$0]; next } ($1 FS $2 FS $3) in wanted' \
     <(printf '%s\n' "$packages_only_in_head") <(printf '%s\n' "$earliest_additions"))" ||
     undecidable "確かめる版を絞れない"
 fi

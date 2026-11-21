@@ -430,4 +430,46 @@ commit_at "$added_at" "adds a crate whose name is a curl glob"
 report "broken reason=yes" "$(summary_of "$index" "$fourteen_days" main pr)" \
   "G7 crates.io の文字種でない crate 名は index を引かずに exit 2(glob が指す abcde は期間を経ている)"
 
+# --- 実装の検証の後に足した、止める枝ごとのケース ---
+
+start_repo g8
+git checkout -q -b topic || exit 1
+note_at "$added_at" "note on topic"
+git checkout -q pr || exit 1
+mkdir -p nested || exit 1
+(cd nested && write_lock old@1.0.0) || exit 1
+merge_at "$later" topic base@1.0.0
+report "broken reason=yes" "$(summary_of "$index" "$fourteen_days" main pr)" \
+  "G8 マージコミットだけがルート以外の Cargo.lock を足しても exit 2"
+
+start_repo g9
+git checkout -q -b topic || exit 1
+write_lock base@1.0.0 noversion@
+commit_at "$added_at" "adds noversion on topic"
+git checkout -q pr || exit 1
+note_at "$next_day" "note on pr"
+merge_at "$later" topic base@1.0.0 old@1.0.0
+report "broken reason=yes" "$(summary_of "$index" "$fourteen_days" main pr)" \
+  "G9 範囲の途中のコミットの Cargo.lock を読めなければ、先端で直っていても exit 2(先端で足した old は期間を経ている)"
+
+start_repo g10
+write_lock base@1.0.0 fresh@1.0.0 localdep@@path
+commit_at "$added_at" "adds fresh and a path package without version"
+report "broken reason=yes" "$(summary_of "$index" "$fourteen_days" main pr)" \
+  "G10 version の無い path の [[package]] は、確かめない source でも exit 2"
+
+start_repo g11
+printf '\n[[package]] \nname = "old"\nversion = "1.0.0"\nsource = "%s"\nchecksum = "%s"\n' \
+  "$crates_io_source" "$checksum" >>Cargo.lock
+commit_at "$added_at" "adds old under a heading with a trailing space"
+report "broken reason=yes" "$(summary_of "$index" "$fourteen_days" main pr)" \
+  "G11 [[package]] と読めない package の見出しは exit 2(old は期間を経ている)"
+
+start_repo g12
+printf '\n[[package]]\nversion = "1.0.0"\nsource = "%s"\nchecksum = "%s"\n' "$crates_io_source" "$checksum" \
+  >>Cargo.lock
+commit_at "$added_at" "adds a crates.io package without name"
+report "broken reason=yes" "$(summary_of "$index" "$fourteen_days" main pr)" \
+  "G12 name の無い crates.io の [[package]] は exit 2"
+
 exit "$cases_failed"
