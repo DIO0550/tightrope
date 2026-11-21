@@ -1,0 +1,52 @@
+# PR の Red のコミット(トレーラ `TDD: red`)を確かめる。何を確かめるか・判定の順・見出しは
+# .github/scripts/check-red-commits.sh の冒頭。
+#
+# Why not(rust.yml のジョブにする): mutants.yml の冒頭と同じ。走らせるのは PR だけで、`if:` で skipped になったジョブは
+# 必須チェックでも Success と報告される。
+# Why(権限を足さない): PR が書いたコードを先端と Red の 2 つの木で走らせ、Red の木は Files changed に出ない。
+# そのため `pull_request_target`・秘密情報・書き込み権限・キャッシュの保存を足さず、checkout の認証情報も残さない。
+# Why(残る弱さ): 「落ちた」と数えるのは結果行が `失敗 N`(N≥1)のときだけで、どの検査で落ちたかは見ない。古い木が新しい
+# clippy の lint に当たっただけでも Red が落ちたと数える。Red で落ちたものを名前ごとに先端で照らすのは #235。
+# Why(マージコミットではなく PR の先端で走らせる): Red と比べる相手を、Red と同じ枝の上のコミットにする。
+# マージコミットで pre-push が通ることは rust.yml の harness ジョブが見る。
+#
+# ci-trace.yml の `workflows:` に載せ、実行時間を追って timeout-minutes を詰める。
+name: TDD Red
+
+on:
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  red-commits:
+    name: Red のコミットが落ちるかのチェック
+    runs-on: ubuntu-latest
+    # 新しい作業ツリーで pre-push を 2 回走らせる分とツールチェーン・checkout に、遅いランナーの分を見込む。
+    timeout-minutes: 15
+    steps:
+      # pull_request ではマージコミットを取り出す。HEAD^1 が main の先端、HEAD^2 が PR の先端。
+      # Why(全履歴): red-commits.sh は浅いクローンで止まる(理由はそちら)。
+      # Why(persist-credentials: false): 取り出した後に git でリモートへ繋がない(`git worktree add` は手元の履歴で済む)。
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # rust.yml の harness ジョブと同じ入れ方(理由は rust.yml の check ジョブ)。
+      - name: Rust ツールチェーン
+        run: |
+          rustup update --no-self-update stable
+          rustup default stable
+          rustup component add rustfmt clippy
+
+      - name: Red のコミットと PR の先端の pre-push
+        run: bash .github/scripts/check-red-commits.sh HEAD^1 HEAD^2
