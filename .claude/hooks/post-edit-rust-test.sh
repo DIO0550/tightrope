@@ -54,19 +54,39 @@ expect_result() {
   failures=$((failures + 1))
 }
 
-# 依存を持たないクレートを作る。`[workspace]` を置くのは、外側のクレートの中に
-# 内側のクレートを置いたときに cargo が外側をワークスペースの根と取り違えないため。
+# 1 行で ok / FAIL を出す。FAIL なら続けて理由を出す。
+#
+# $1 名前
+# $2 食い違った理由(空なら ok)
+expect_state() {
+  if [ -z "$2" ]; then
+    echo "ok   $1"
+    return 0
+  fi
+  echo "FAIL $1: $2"
+  failures=$((failures + 1))
+}
+
+# 依存を持たないクレートを、空の src/lib.rs と Cargo.lock を添えて作る。`[workspace]` を置くのは、外側の
+# クレートの中に内側のクレートを置いたときに cargo が外側をワークスペースの根と取り違えないため。
+# lock はネットワークを使わずに作る(依存が無いので解決に index は要らない)。
+#
+# $1 クレートのディレクトリ
+# $2 パッケージ名(省くと probe)
 new_crate() {
   local dir="$1"
+  local name="${2:-probe}"
   mkdir -p "${dir}/src"
-  cat > "${dir}/Cargo.toml" <<'EOF'
+  cat > "${dir}/Cargo.toml" <<EOF
 [package]
-name = "probe"
+name = "${name}"
 version = "0.1.0"
 edition = "2024"
 
 [workspace]
 EOF
+  : > "${dir}/src/lib.rs"
+  (cd "$dir" && cargo generate-lockfile --offline --quiet)
 }
 
 # clippy の警告（`needless_return`）を 1 件持つ、整形済みのソース。
@@ -138,6 +158,33 @@ printf 'pub fn one() -> i32 {\n' > "${broken}/src/lib.rs"
 
 expect_result "整形できなければ fmt の診断を返し、clippy は走らせない" \
   2 "post-edit-rust: cargo fmt" "post-edit-rust: cargo clippy" "$(payload_of "${broken}/src/lib.rs")"
+
+# --- Cargo.lock ---
+unlocked="${workspace}/unlocked"
+new_crate "${workspace}/unlocked-dep" dep
+new_crate "$unlocked"
+printf '\n[dependencies]\ndep = { path = "../unlocked-dep" }\n' >> "${unlocked}/Cargo.toml"
+printf '%s' "$clean_source" > "${unlocked}/src/lib.rs"
+cp "${unlocked}/Cargo.lock" "${workspace}/unlocked.lock.before"
+
+expect_result "lock に無い依存があれば、lock を書き換えず --locked で止まった診断を返して 2 で終わる" \
+  2 "because --locked was passed" "警告を出しました" "$(payload_of "${unlocked}/src/lib.rs")"
+
+lock_reason=""
+cmp -s "${workspace}/unlocked.lock.before" "${unlocked}/Cargo.lock" || lock_reason="Cargo.lock が書き換わった"
+expect_state "lock に無い依存があっても、Cargo.lock を書き換えない" "$lock_reason"
+
+lockless="${workspace}/lockless"
+new_crate "$lockless"
+rm "${lockless}/Cargo.lock"
+printf '%s' "$clean_source" > "${lockless}/src/lib.rs"
+
+expect_result "Cargo.lock の無いクレートでは 2 で終わる" \
+  2 "" "" "$(payload_of "${lockless}/src/lib.rs")"
+
+lock_reason=""
+[ ! -e "${lockless}/Cargo.lock" ] || lock_reason="Cargo.lock が作られた"
+expect_state "Cargo.lock の無いクレートで、Cargo.lock を作らない" "$lock_reason"
 
 if [ "$failures" -ne 0 ]; then
   echo "${failures} 件のテストが落ちました"

@@ -21,6 +21,7 @@ run_check "fmt" cargo fmt --check
 run_check "clippy" cargo clippy --all-targets -- -D warnings
 run_check "doc" env RUSTDOCFLAGS="-D rustdoc::private_intra_doc_links" cargo doc --no-deps
 run_check "test" cargo test
+run_check "cargo の検査の判定表" bash harness/githooks/lib/rust-checks-cases.sh
 resume_checks
 
 # 行数の予算(AGENTS.md「常時ロードは増やさない」)。実測と予算がずれていれば落ちる。
