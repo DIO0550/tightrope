@@ -1,8 +1,6 @@
 # PR の Cargo.lock に足した crates.io の版が、足したコミットの時点で公開から `.cargo/config.toml` の
 # `global-min-publish-age` の期間を経ていたかを確かめる。何をどう確かめるかは .github/scripts/lock-publish-age.sh の冒頭、
-# 残る穴は harness/deps/README.md「lock の公開からの期間(PR での事後の検知)」。
-#
-# まだ必須チェックに登録されていない(登録するかはリポジトリの設定で、人が決める)。
+# 残る穴は harness/deps/README.md「lock の公開からの期間（PR での事後の検知）」。
 #
 # Why not(rust.yml のジョブにする): mutants.yml の冒頭と同じ。走らせるのは PR だけで、`if:` で skipped になったジョブは
 # 必須チェックでも Success と報告される。

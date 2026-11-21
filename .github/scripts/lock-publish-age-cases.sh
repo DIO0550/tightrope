@@ -48,18 +48,9 @@ long_ago='2019-12-01T00:00:00Z'
 two_days_before='2020-02-28T00:00:00Z'
 four_days_before='2020-02-26T00:00:00Z'
 
-# 設定ファイルを置き、そのパスを出す。
-#
-# $1 ファイル名
-# $2 中身
-config_of() {
-  printf '%s' "$2" >"$work/$1"
-  echo "$work/$1"
-}
-
-fourteen_days="$(config_of fourteen.toml $'[registry]\nglobal-min-publish-age = "14 days"\n')"
-three_days="$(config_of three.toml $'[registry]\nglobal-min-publish-age = "3 days"\n')"
-no_age="$(config_of no-age.toml $'[registry]\n')"
+fourteen_days="$(publish_age_config_of "$work" 14)"
+three_days="$(publish_age_config_of "$work" 3)"
+no_age="$(config_of "$work" no-age.toml $'[registry]\n')"
 
 # 偽の index に、その版を公開した時刻つきで置く。
 #
@@ -180,12 +171,8 @@ denied_of() {
 summary_of() {
   local index_root="$1" config="$2" output status=0 reason=no
   shift 2
-  if [ "$config" = - ]; then
-    output="$(LOCK_PUBLISH_AGE_INDEX_URL="file://$index_root" bash "$detector" "$@" 2>"$run_stderr")" || status=$?
-  else
-    output="$(LOCK_PUBLISH_AGE_INDEX_URL="file://$index_root" LOCK_PUBLISH_AGE_CONFIG="$config" \
-      bash "$detector" "$@" 2>"$run_stderr")" || status=$?
-  fi
+  output="$(run_with_config LOCK_PUBLISH_AGE_CONFIG "$config" \
+    env LOCK_PUBLISH_AGE_INDEX_URL="file://$index_root" bash "$detector" "$@" 2>"$run_stderr")" || status=$?
   case "$status" in
     0) printf 'pass %s denied=%s' "$(counts_of "$output")" "$(denied_of "$output")" ;;
     1) printf 'deny %s denied=%s' "$(counts_of "$output")" "$(denied_of "$output")" ;;
@@ -427,5 +414,20 @@ write_lock fresh@1.0.0 old@1.0.0
 commit_at "$added_at" "adds the first Cargo.lock"
 report "deny commits=1 checked=2 denied=fresh@1.0.0" "$(summary_of "$index" "$fourteen_days" main pr)" \
   "G5 Cargo.lock の無い親から作ったコミットは、lock のすべての版を足したと読む"
+
+start_repo g6
+mkdir -p ネスト || exit 1
+(cd ネスト && write_lock old@1.0.0) || exit 1
+commit_at "$added_at" "adds a lock under a non-ASCII directory"
+report "broken reason=yes" "$(summary_of "$index" "$fourteen_days" main pr)" \
+  "G6 非 ASCII のディレクトリの Cargo.lock を変えたら exit 2"
+
+publish ab/cd/abcde abcde 1.0.0 "$long_ago"
+
+start_repo g7
+write_lock 'abcd{e}@1.0.0' base@1.0.0
+commit_at "$added_at" "adds a crate whose name is a curl glob"
+report "broken reason=yes" "$(summary_of "$index" "$fourteen_days" main pr)" \
+  "G7 crates.io の文字種でない crate 名は index を引かずに exit 2(glob が指す abcde は期間を経ている)"
 
 exit "$cases_failed"

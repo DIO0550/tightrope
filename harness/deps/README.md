@@ -39,8 +39,8 @@ curl -s https://index.crates.io/cl/ap/clap | tail -1 | grep -o '"pubtime":"[^"]*
 ## 道具の cooldown
 
 **`cargo install` は `global-min-publish-age` を見ない。** `cargo install` で入れる道具は、
-入れる前に `harness/deps/tool-cooldown.sh` を通す。公開から期間が経っていないとき、設定・index・版の
-どれかが読めないときに落ちる。
+入れる前に `harness/deps/tool-cooldown.sh` を通す。公開から期間が経っていないとき、crate の名前が crates.io の文字種で
+ないとき、設定・index・版のどれかが読めないときに落ちる。
 
 ```bash
 bash harness/deps/tool-cooldown.sh cargo-mutants <版> && cargo install cargo-mutants --locked --version <版>
@@ -54,20 +54,21 @@ bash harness/deps/tool-cooldown-cases.sh   # 判定表
 
 **PR で `Cargo.lock` に足した crates.io の版は、CI（`.github/workflows/lock-publish-age.yml`）が、その版を
 足したコミットの時点で公開から期間を経ていたかを確かめる。** `resolve.sh` を通さずに解決した版や、逃げ道で
-取り込んだ版を、PR の上で赤くして見えるようにする。cooldown（解決の入口で止める）とは別の、事後の検知で、
-赤くなる頃には手元で build script と proc macro が走った後なので、防御にはならない。
+取り込んだ版を、PR の上で赤くして見えるようにする。cooldown（解決の入口で止める）とは別の事後の検知で、
+防御にはならない（理由は「なぜ入口を 1 つにするか」）。
 
 ```bash
 bash .github/scripts/lock-publish-age.sh origin/main HEAD   # PR と同じ確かめ方を手元で
 bash .github/scripts/lock-publish-age-cases.sh              # 判定表
 ```
 
-- **見るのは足したコミットの committer の時刻。** 走らせ直しても答えは変わらない。何をどう確かめるかは
-  `lock-publish-age.sh` の冒頭
-- **まだ必須チェックに登録されていない。** 登録するかはリポジトリの設定で、人が決める
+- **見るのは足したコミットの committer の時刻。** 時刻はコミットに固定されるので、時間が経っても答えは
+  甘くならない。何をどう確かめるかは `lock-publish-age.sh` の冒頭
 - **解決した時刻は残らないので、committer の時刻は甘い側に寄る。** 期間内の版を足したコミットを、公開から期間を
   経た後に rebase して時刻を新しくすると通る
 - **main への直接 push は見ない。** 走るのは PR だけ
+- **判定は PR 自身の設定・スクリプト・コミットで行う。** 期間を縮める・スクリプトを変える・committer の時刻を
+  未来にする、のどれでも通せるので、それらを変えた PR は人が差分を見る
 
 ## 前提として引き受けること
 
@@ -76,10 +77,11 @@ bash .github/scripts/lock-publish-age-cases.sh              # 判定表
 - **registry 由来の依存にしか効かない。** git / path 依存は `pubtime` を持たない
 - **cooldown は検知しない。** 発見・yank されるまでの時間を稼ぐだけなので、これ単体を拠り所にしない。
   抜けた版を PR の上で見つけるのは「lock の公開からの期間（PR での事後の検知）」で、こちらも事後に見えるだけ
+  （防御にならない理由は「なぜ入口を 1 つにするか」）
 - **緊急のセキュリティ修正は逃げ道を使う。** `incompatible-publish-age` を `allow` にして
   `cargo update --precise` で取り込む。**使ったことを PR に書く**（黙って抜けると、なぜ期間内の
-  バージョンが lock に入ったのかが後から読めない）。逃げ道を使った PR は lock の公開からの期間の検査が
-  赤くなる。例外を書くファイルは置かない。必須チェックにした場合は、管理者が理由を PR に書いてマージする
+  バージョンが lock に入ったのかが後から読めない）。逃げ道で期間内の版を足した PR は、lock の公開からの
+  期間の検査が赤くなる。例外を書くファイルは置かない。必須チェックにした場合は、管理者が理由を PR に書いてマージする
 
 ## まだ置いていないもの
 

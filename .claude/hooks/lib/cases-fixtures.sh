@@ -2,7 +2,8 @@
 #
 # フックの判定表(`*-cases.sh`)が共有する、ケースの前提の置き方。落ちる検出器・起動できない python3・
 # 失敗する awk・本体が同じテストヘルパーを渡されたパスへ置くものと、サブエージェントの中の呼び出しの入力を組むもの、
-# 使い捨ての git リポジトリを外の git の環境から切り離して入るもの、偽の sparse index に版を置くもの。
+# 使い捨ての git リポジトリを外の git の環境から切り離して入るもの、偽の sparse index に版を置くもの、
+# 公開からの期間の設定ファイルを置いて検出器へ渡すもの。
 #
 # 使う側: lib/verification-agent-cases.sh / lib/parent-session-edit-cases.sh /
 # harness/githooks/lib/test-placement-cases.sh / harness/githooks/lib/test-file-length-cases.sh /
@@ -112,4 +113,37 @@ enter_repo() {
 put_index_line() {
   mkdir -p "$(dirname "$1/$2")"
   printf '%s\n' "$3" >>"$1/$2"
+}
+
+# 設定ファイルを置き、そのパスを出す。
+#
+# $1 置き場のディレクトリ
+# $2 ファイル名
+# $3 中身
+config_of() {
+  printf '%s' "$3" >"$1/$2"
+  echo "$1/$2"
+}
+
+# `[registry]` の `global-min-publish-age` を `"<日数> days"` にした設定ファイルを置き、そのパスを出す。
+#
+# $1 置き場のディレクトリ
+# $2 日数
+publish_age_config_of() {
+  config_of "$1" "$2-days.toml" "[registry]"$'\n'"global-min-publish-age = \"$2 days\""$'\n'
+}
+
+# 設定ファイルを渡す環境変数を付けて、コマンドを走らせる。
+#
+# $1 設定ファイルを渡す環境変数の名前
+# $2 設定ファイル(`-` なら環境変数を付けず、検出器に既定の設定を読ませる)
+# $3 以降 走らせるコマンド
+run_with_config() {
+  local variable="$1" config="$2"
+  shift 2
+  if [ "$config" = - ]; then
+    "$@"
+    return
+  fi
+  env "$variable=$config" "$@"
 }

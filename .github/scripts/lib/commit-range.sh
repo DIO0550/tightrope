@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 #
 # `<base> <head>` の範囲を辿るスクリプトが共有する、範囲を辿る前の確かめ方。source して使う。
-# 止めるときは、source した側の `$0` のファイル名を前に付けた理由を標準エラーへ出して exit 2 で終わる。
+# 止めるときは、source した側の `$0` のファイル名から `.sh` を除いたものを前に付けた理由を標準エラーへ出して
+# exit 2 で終わる。
 #
 # 使う側: `.github/scripts/red-commits.sh` / `.github/scripts/lock-publish-age.sh`
 
@@ -13,7 +14,7 @@ stop_if_shallow_clone() {
   local shallow
   shallow="$(git rev-parse --is-shallow-repository)" || exit 2
   [ "$shallow" = false ] && return 0
-  echo "$(basename "$0"): 浅いクローンでは範囲を辿り切れず $1 を取りこぼしうるので止める(全履歴を取ってから走らせる)" >&2
+  echo "$(basename "$0" .sh): 浅いクローンでは範囲を辿り切れず $1 を取りこぼしうるので止める(全履歴を取ってから走らせる)" >&2
   exit 2
 }
 
@@ -31,6 +32,6 @@ commit_of() {
     echo "$sha"
     return 0
   fi
-  echo "$(basename "$0"): $1 の '$2' をコミットへ解決できない" >&2
+  echo "$(basename "$0" .sh): $1 の '$2' をコミットへ解決できない" >&2
   exit 2
 }

@@ -38,7 +38,7 @@ heading_prefix='Red のコミットの検査: 結果 '
 # HEAD は `pr` に置いたまま終わる。
 #
 # $1 リポジトリの名前(ケースごとに違える)
-start_repo_on_pr() {
+start_repo() {
   mkdir -p "$work/$1" || exit 1
   git -C "$work/$1" init -q -b main || exit 1
   enter_repo "$work/$1"
@@ -110,7 +110,7 @@ commit_with_prepush() {
 # $2 Red の偽の pre-push の結果(`commit_with_prepush` の $2)
 # $3 先端の偽の pre-push の結果
 start_repo_on_main_with_red_pr() {
-  start_repo_on_pr "$1"
+  start_repo "$1"
   commit_with_prepush red "$2" "$(message_of red 'TDD: red')"
   commit_with_prepush head "$3" head
   git checkout -q main || exit 1
@@ -183,44 +183,44 @@ check_summary_of() {
 
 # --- 拾い方(red-commits.sh) ---
 
-start_repo_on_pr l1
+start_repo l1
 commit_with_message "$(message_of plain)"
 commit_with_message "$(message_of red 'TDD: red')"
 report "exit=0 picked=red" "$(pick_summary_of main pr)" \
   "L1 Co-Authored-By と同じ最後の段落に TDD: red を持つコミットを拾い、印の無いコミットは拾わない"
 
-start_repo_on_pr l2
+start_repo l2
 commit_with_message "$(message_of lower 'tdd: red')"
 report "exit=0 picked=lower" "$(pick_summary_of main pr)" "L2 キーが小文字の tdd: red でも拾う"
 
-start_repo_on_pr l3
+start_repo l3
 commit_with_message "$(message_of capital 'TDD: Red')"
 commit_with_message "$(message_of control 'TDD: red')"
 report "exit=0 picked=control" "$(pick_summary_of main pr)" "L3 値が Red のものは拾わない"
 
-start_repo_on_pr l4
+start_repo l4
 commit_with_message "$(message_of extra 'TDD: red extra')"
 commit_with_message "$(message_of control 'TDD: red')"
 report "exit=0 picked=control" "$(pick_summary_of main pr)" "L4 値が red extra のものは拾わない"
 
-start_repo_on_pr l5
+start_repo l5
 commit_with_message "$(printf 'not-last\n\nTDD: red\n\n%s\n' "$co_author")"
 commit_with_message "$(message_of control 'TDD: red')"
 report "exit=0 picked=control" "$(pick_summary_of main pr)" "L5 最後の段落でない TDD: red は拾わない"
 
-start_repo_on_pr l6
+start_repo l6
 commit_with_message 'TDD: red'
 commit_with_message "$(message_of control 'TDD: red')"
 report "exit=0 picked=control" "$(pick_summary_of main pr)" "L6 件名だけが TDD: red のものは拾わない"
 
-start_repo_on_pr l7
+start_repo l7
 commit_with_message "$(message_of pr-red 'TDD: red')"
 git checkout -q main || exit 1
 commit_with_message "$(message_of main-red 'TDD: red')"
 report "exit=0 picked=pr-red" "$(pick_summary_of main pr)" \
   "L7 PR が枝分かれした後に main 側で進めた(PR には取り込まない)コミットの印は拾わない"
 
-start_repo_on_pr l8
+start_repo l8
 commit_with_message "$(message_of pr-red 'TDD: red')"
 git checkout -q main || exit 1
 commit_with_message "$(message_of main-red 'TDD: red')"
@@ -228,17 +228,17 @@ git checkout -q pr && git merge -q --no-edit main || exit 1
 report "exit=0 picked=pr-red" "$(pick_summary_of main pr)" \
   "L8 PR が main を取り込んだマージを含んでも、取り込んだ main 側の印は拾わない"
 
-start_repo_on_pr l9
+start_repo l9
 commit_with_message "$(message_of red 'TDD: red')"
 pick_summary="$(pick_summary_of main)"
 report "exit=2" "${pick_summary%% *}" "L9 引数が 2 つでなければ使い方を出す"
 
-start_repo_on_pr l10
+start_repo l10
 commit_with_message "$(message_of red 'TDD: red')"
 pick_summary="$(pick_summary_of main no-such-revision)"
 report "exit=2" "${pick_summary%% *}" "L10 範囲を解決できない(存在しない revision)なら止まる"
 
-start_repo_on_pr l11-source
+start_repo l11-source
 commit_with_message base2
 commit_with_message "$(message_of red 'TDD: red')"
 commit_with_message head
@@ -250,20 +250,20 @@ reason_on_stderr=no
 report "exit=2 reason_on_stderr=yes" "${pick_summary%% *} reason_on_stderr=$reason_on_stderr" \
   "L11 浅いクローン(git clone --depth 2 file://…)なら、標準エラーに理由を出して止まる"
 
-start_repo_on_pr l12
+start_repo l12
 commit_with_message "$(message_of two 'TDD: green' 'TDD: red')"
 report "exit=0 picked=two" "$(pick_summary_of main pr)" "L12 TDD のトレーラが 2 つあり、片方が red なら拾う"
 
-start_repo_on_pr l13
+start_repo l13
 commit_with_message "$(message_of folded 'TDD: red' '  extra')"
 commit_with_message "$(message_of control 'TDD: red')"
 report "exit=0 picked=control" "$(pick_summary_of main pr)" "L13 折り返した TDD: red と継続行は拾わない"
 
-start_repo_on_pr l14
+start_repo l14
 commit_with_message "$(message_of order 'TDD: red' 'TDD: green')"
 report "exit=0 picked=order" "$(pick_summary_of main pr)" "L14 TDD のトレーラが 2 つあり、red が先で後ろが green でも拾う"
 
-start_repo_on_pr l15
+start_repo l15
 commit_with_message "$(message_of red 'TDD: red')"
 pick_summary="$(pick_summary_of main pr extra)"
 usage_on_stderr=no
@@ -271,12 +271,12 @@ grep -q '^使い方:' "$pick_stderr" && usage_on_stderr=yes
 report "exit=2 usage_on_stderr=yes" "${pick_summary%% *} usage_on_stderr=$usage_on_stderr" \
   "L15 引数が 3 つなら、標準エラーに使い方を出して止まる"
 
-start_repo_on_pr l16
+start_repo l16
 commit_with_message "$(message_of tab $'TDD: green\tred')"
 commit_with_message "$(message_of control 'TDD: red')"
 report "exit=0 picked=control" "$(pick_summary_of main pr)" "L16 値が green<TAB>red のものは拾わない"
 
-start_repo_on_pr l17
+start_repo l17
 commit_with_message "$(message_of red 'TDD: red')"
 pick_summary="$(pick_summary_of main '')"
 reason_on_stderr=no
@@ -284,7 +284,7 @@ reason_on_stderr=no
 report "exit=2 reason_on_stderr=yes" "${pick_summary%% *} reason_on_stderr=$reason_on_stderr" \
   "L17 head が空なら、HEAD と読まずに標準エラーに理由を出して止まる"
 
-start_repo_on_pr l18
+start_repo l18
 commit_with_message "$(message_of red 'TDD: red')"
 : >'main..unknown' || exit 1
 pick_summary="$(pick_summary_of main unknown)"
@@ -307,14 +307,14 @@ start_repo_on_main_with_red_pr c3 pass fail
 report "exit=1 heading=失敗(PR の先端で検査が通らない) log=head" "$(check_summary_of main pr)" \
   "C3 先端が落ちたら落とす(Red は通る偽物にして、先端と Red の順番の取り違えを落とす)"
 
-start_repo_on_pr c4
+start_repo c4
 commit_with_prepush plain fail plain
 commit_with_prepush head pass head
 git checkout -q main || exit 1
 report "exit=0 heading=通過(Red の印のコミットが無い) log=" "$(check_summary_of main pr)" \
   "C4 Red の印が無ければ、先端を走らせずに通す"
 
-start_repo_on_pr c5
+start_repo c5
 commit_with_prepush red1 fail "$(message_of red1 'TDD: red')"
 commit_with_prepush red2 fail "$(message_of red2 'TDD: red')"
 commit_with_prepush head pass head
@@ -361,7 +361,7 @@ report "exit=2 heading=確かめられない(PR の先端の pre-push の結果�
   "C13 先端の pre-push が飛ばしただけで落ちたなら、先端の失敗ではなく「確かめられない」にする"
 
 # GIT_DIR の向け先は main と pr を持ち Red の無いリポジトリにする。漏れを読むと「Red の印が無い」で通ってしまう。
-start_repo_on_pr c14-other
+start_repo c14-other
 commit_with_message head
 start_repo_on_main_with_red_pr c14 fail pass
 report "exit=0 heading=通過(Red で落ち、PR の先端で通った) log=head,red" \

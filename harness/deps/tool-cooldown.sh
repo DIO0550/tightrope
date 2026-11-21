@@ -11,7 +11,8 @@
 # 終了コード:
 #   0 期間が経っている
 #   1 期間が経っていない
-#   2 設定・index・版のどれかが読めない（経っているかを決められないので、通さない側に倒す）
+#   2 crate の名前が crates.io の文字種でない・設定・index・版のどれかが読めない（経っているかを決められないので、
+#     通さない側に倒す）
 #
 # 環境変数（判定表が偽の index と設定へ差し替えるためのもの）:
 #   TOOL_COOLDOWN_INDEX_URL  sparse index の根。既定は https://index.crates.io。curl が読める file:// も渡せる
@@ -39,25 +40,11 @@ version="$2"
 [ -n "$crate" ] || undecidable "crate の名前が空"
 [ -n "$version" ] || undecidable "版が空"
 
-min_days="$(min_publish_days_of "$config")"
-case "$?" in
-  0) ;;
-  1) undecidable "$config を読めない" ;;
-  *) undecidable "$config の [registry] の global-min-publish-age を \"N days\" として 1 つ読めない" ;;
-esac
+min_days="$(min_publish_days_of tool-cooldown "$config")" || exit 2
+index_lines="$(index_lines_of tool-cooldown "$index_url" "$crate")" || exit 2
+pubtime="$(pubtime_of tool-cooldown "$crate" "$version" "$index_lines")" || exit 2
 
-index_lines="$(index_lines_of "$index_url" "$crate")" || undecidable "$crate の版の一覧を $index_url から読めない"
-published="$(published_at_of "$index_lines" "$version")"
-case "$?" in
-  0) ;;
-  1) undecidable "$crate の版の一覧を JSON として読めない" ;;
-  2) undecidable "$crate $version が index に無い" ;;
-  *) undecidable "$crate $version の pubtime が無い・読めない" ;;
-esac
-IFS=$'\t' read -r published_at pubtime <<<"$published"
-
-usable_from=$((published_at + min_days * seconds_per_day))
-if [ "$(date -u +%s)" -lt "$usable_from" ]; then
+if ! has_passed_min_publish_age_at "$(date -u +%s)" "$pubtime" "$min_days"; then
   echo "tool-cooldown: $crate $version は $pubtime の公開で、$min_days 日経っていない"
   exit 1
 fi
