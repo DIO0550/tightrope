@@ -7,8 +7,11 @@ description = "モジュール間の結合を統合強度・距離・変動性�
 repository = "https://github.com/DIO0550/tightrope"
 license = "MIT"
 
-# 依存はまだ置かない。足すときは素の `cargo add` ではなく harness/deps/resolve.sh を通す
+# 依存を足すときは素の `cargo add` ではなく harness/deps/resolve.sh を通す
 # (AGENTS.md「依存の更新は cooldown を通す」)。
+[dependencies]
+# features は既定のまま。絞っても外れるのは build script も proc macro も持たない toml_writer だけで、`toml::Table` の `FromStr` は `serde` feature の下にあり serde_core は外せない。
+toml = "1.2.0"
 
 # 本番コードでの unwrap / expect の禁止は、規約の文ではなくツールで落とす。
 # テストコード内は clippy.toml の allow-unwrap-in-tests / allow-expect-in-tests で許可する

@@ -68,7 +68,7 @@ jobs:
           cargo fmt --version
           cargo clippy --version
 
-      # Why not（キャッシュ）: 依存がまだ無く、ビルドからテストまで数秒で終わる。
+      # Why not（キャッシュ）: 依存が少なく、ビルドからテストまで数秒で終わる。
       # `actions/cache` を足しても縮む時間より、キー設計と復元漏れの面倒のほうが大きい。
       # 遅くなってから入れる。
 
