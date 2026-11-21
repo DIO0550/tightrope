@@ -1,0 +1,41 @@
+# PR の Cargo.lock に足した crates.io の版が、足したコミットの時点で公開から `.cargo/config.toml` の
+# `global-min-publish-age` の期間を経ていたかを確かめる。何をどう確かめるかは .github/scripts/lock-publish-age.sh の冒頭、
+# 残る穴は harness/deps/README.md「lock の公開からの期間(PR での事後の検知)」。
+#
+# まだ必須チェックに登録されていない(登録するかはリポジトリの設定で、人が決める)。
+#
+# Why not(rust.yml のジョブにする): mutants.yml の冒頭と同じ。走らせるのは PR だけで、`if:` で skipped になったジョブは
+# 必須チェックでも Success と報告される。
+# Why not(`paths: [Cargo.lock]` で絞る): 必須チェックにしたとき、lock を変えない PR で待ちのまま残る。lock を変えるコミットが
+# 無ければ index を読まずに終わる。
+# Why(権限を足さない): PR が書いたスクリプトを走らせるので、`pull_request_target`・秘密情報・書き込み権限を足さず、
+# checkout の認証情報も残さない。
+name: Cargo.lock の公開からの期間
+
+on:
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lock-publish-age:
+    name: Cargo.lock に足した版の公開からの期間のチェック
+    runs-on: ubuntu-latest
+    # 足した版の crate ごとに index を 1 回読むだけなので、checkout と遅いランナーの分を見込んでも数分で済む。
+    timeout-minutes: 5
+    steps:
+      # pull_request ではマージコミットを取り出す。HEAD^1 が main の先端、HEAD^2 が PR の先端。
+      # Why(全履歴): lock-publish-age.sh は浅いクローンで止まる(理由は .github/scripts/lib/commit-range.sh)。
+      # Why(persist-credentials: false): 取り出した後に git でリモートへ繋がない(index は curl で読む)。
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: 足した版の公開からの期間
+        run: bash .github/scripts/lock-publish-age.sh HEAD^1 HEAD^2

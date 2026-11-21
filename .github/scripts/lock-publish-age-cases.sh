@@ -385,4 +385,47 @@ commit_at "$added_at" "adds nested lock"
 report "broken reason=yes" "$(summary_of "$index" "$fourteen_days" main pr)" \
   "R25 ルート以外の Cargo.lock を変えたら exit 2"
 
+
+# --- Green の後に足した境界と網羅 ---
+
+publish ed/ge/edge edge 1.0.0 '2020-02-16T00:00:00Z'
+publish wa/si/wasi wasi 0.11.0 "$long_ago"
+publish wa/si/wasi wasi 0.11.0+wasi-snapshot-preview1 "$two_days_before"
+
+start_repo g1
+write_lock base@1.0.0 edge@1.0.0
+commit_at "$added_at" "adds edge"
+report "pass commits=1 checked=1 denied=" "$(summary_of "$index" "$fourteen_days" main pr)" \
+  "G1 公開からちょうど期間を経た時点で足した版は通す"
+
+start_repo g2
+write_lock base@1.0.0 edge@1.0.0
+commit_at '2020-02-29T23:59:59Z' "adds edge"
+report "deny commits=1 checked=1 denied=edge@1.0.0" "$(summary_of "$index" "$fourteen_days" main pr)" \
+  "G2 期間に 1 秒足りない時点で足した版は落とす"
+
+start_repo g3
+write_lock base@1.0.0 fresh@1.0.0
+printf '\n[[patch.unused]]\nname = "unused"\nversion = "1.0.0"\nsource = "%s"\n' "$crates_io_source" >>Cargo.lock
+commit_at "$added_at" "adds fresh and an unused patch"
+report "deny commits=1 checked=1 denied=fresh@1.0.0" "$(summary_of "$index" "$fourteen_days" main pr)" \
+  "G3 [[patch.unused]] は確かめない(対照 fresh)"
+
+start_repo g4
+write_lock base@1.0.0 wasi@0.11.0+wasi-snapshot-preview1
+commit_at "$added_at" "adds wasi"
+report "deny commits=1 checked=1 denied=wasi@0.11.0+wasi-snapshot-preview1" \
+  "$(summary_of "$index" "$fourteen_days" main pr)" \
+  "G4 build metadata 付きの版は、metadata を含めた版で index を引く"
+
+mkdir -p "$work/g5" || exit 1
+git -C "$work/g5" init -q -b main || exit 1
+enter_repo "$work/g5"
+note_at "$based_at" "base without Cargo.lock"
+git checkout -q -b pr || exit 1
+write_lock fresh@1.0.0 old@1.0.0
+commit_at "$added_at" "adds the first Cargo.lock"
+report "deny commits=1 checked=2 denied=fresh@1.0.0" "$(summary_of "$index" "$fourteen_days" main pr)" \
+  "G5 Cargo.lock の無い親から作ったコミットは、lock のすべての版を足したと読む"
+
 exit "$cases_failed"

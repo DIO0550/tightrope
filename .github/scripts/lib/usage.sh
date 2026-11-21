@@ -6,7 +6,7 @@
 # 行から、次の `#` だけの行まで。
 #
 # 使う側: `.github/scripts/upsert-sticky-comment.sh` / `.github/scripts/red-commits.sh` /
-# `.github/scripts/check-red-commits.sh`
+# `.github/scripts/check-red-commits.sh` / `.github/scripts/lock-publish-age.sh`
 
 usage() {
   sed -n '/^# 使い方:/,/^#$/p' "$0" | sed 's/^# \{0,1\}//' >&2
