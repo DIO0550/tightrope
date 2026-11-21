@@ -339,7 +339,7 @@ Issue: #<番号>
 | `test-reviewer` | テストが守っているか(差分の行の変異(cargo-mutants)の生き残りと、手で壊す実測) | 実行されるコード(下)。2 段目 |
 
 「実行されるコード」は `src/` `tests/` `.claude/hooks/` `.github/scripts/` `harness/githooks/` と
-`harness/deps/*.sh` `harness/records/*.sh`。設定(`Cargo.toml` `.cargo/` `.github/workflows/`)は含めない。
+`harness/deps/` 配下の `.sh`(`lib/` を含む)と `harness/records/*.sh`。設定(`Cargo.toml` `.cargo/` `.github/workflows/`)は含めない。
 壊したときに落ちるのがテストや判定表ではなく、ビルドや CI そのものなので。
 
 パスと語は次で出す。コミット前の新しいファイルも含める。数が 0 なら、その語の条件には当たらない。

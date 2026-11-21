@@ -5,8 +5,8 @@
 # Why: 悪意あるバージョンは build script と proc macro が `cargo build` の時点でローカル実行される。
 # 掴んでから CI で気付いても手遅れなので、解決そのものを止める側に置く。
 #
-# Why not（CI で Cargo.lock の pubtime を検査する）: 赤くなる頃には自分のマシンで実行済み。
-# 事後のバイパス検知にはなるが、防御にはならない。
+# Why not（CI で Cargo.lock の pubtime を検査するだけにする）: 事後の検知で、防御にならない（harness/deps/README.md
+# 「なぜ入口を 1 つにするか」）。CI の検査（.github/scripts/lock-publish-age.sh）は、ここを通さずに入った版を事後に見つけるだけ。
 #
 # 使い方:
 #   bash harness/deps/resolve.sh update
