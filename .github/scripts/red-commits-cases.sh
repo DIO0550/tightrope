@@ -292,6 +292,28 @@ grep -q '^使い方:' "$pick_stderr" && usage_on_stderr=yes
 report "exit=2 usage_on_stderr=yes" "${pick_summary%% *} usage_on_stderr=$usage_on_stderr" \
   "L15 引数が 3 つなら、標準エラーに使い方を出して止まる"
 
+start_repo_on_pr l16
+commit_with_message "$(message_of tab $'TDD: green\tred')"
+commit_with_message "$(message_of control 'TDD: red')"
+report "exit=0 picked=control" "$(pick_summary_of main pr)" "L16 値が green<TAB>red のものは拾わない"
+
+start_repo_on_pr l17
+commit_with_message "$(message_of red 'TDD: red')"
+pick_summary="$(pick_summary_of main '')"
+reason_on_stderr=no
+[ -s "$pick_stderr" ] && reason_on_stderr=yes
+report "exit=2 reason_on_stderr=yes" "${pick_summary%% *} reason_on_stderr=$reason_on_stderr" \
+  "L17 head が空なら、HEAD と読まずに標準エラーに理由を出して止まる"
+
+start_repo_on_pr l18
+commit_with_message "$(message_of red 'TDD: red')"
+: >'main..unknown' || exit 1
+pick_summary="$(pick_summary_of main unknown)"
+reason_on_stderr=no
+[ -s "$pick_stderr" ] && reason_on_stderr=yes
+report "exit=2 reason_on_stderr=yes" "${pick_summary%% *} reason_on_stderr=$reason_on_stderr" \
+  "L18 存在しない revision は、作業ツリーに同じ名前のパスがあっても、標準エラーに理由を出して止まる"
+
 # --- 確かめ方(check-red-commits.sh) ---
 
 start_repo_on_main_with_red_pr c1 fail pass
