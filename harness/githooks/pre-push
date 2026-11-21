@@ -65,6 +65,7 @@ resume_checks
 # 道具の cooldown の判定表は偽の index を curl で読み、版の一覧を jq で読むので、curl と jq の両方が要る。
 { command -v curl >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; } || skip_following_checks "curl か jq が無い"
 run_check "道具の cooldown の判定表" bash harness/deps/tool-cooldown-cases.sh
+run_check "lock の公開からの期間の判定表" bash .github/scripts/lock-publish-age-cases.sh
 resume_checks
 
 # 編集後の fmt / clippy フックのテストは使い捨てのクレートを作るので、cargo と jq の両方が要る。

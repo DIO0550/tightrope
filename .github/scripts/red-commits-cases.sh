@@ -20,14 +20,11 @@ check_script="$scripts_dir/check-red-commits.sh"
 tally_script="$repo_root/harness/githooks/lib/check-tally.sh"
 
 source "$repo_root/.claude/hooks/lib/cases-report.sh"
+source "$repo_root/.claude/hooks/lib/cases-fixtures.sh"
 
-# 外から受け継いだものを消す。linked worktree から push すると pre-push に GIT_DIR が渡り、残すと使い捨ての
-# リポジトリの代わりに外側を読む。PRE_PUSH_REQUIRE_ALL は CI が渡し、残すと C6 は何を壊しても通る。
-unset $(git rev-parse --local-env-vars) PRE_PUSH_REQUIRE_ALL
-unset $(compgen -e | grep -E '^GIT_TRACE')
-export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
-export GIT_AUTHOR_NAME=cases GIT_AUTHOR_EMAIL=cases@example.invalid
-export GIT_COMMITTER_NAME=cases GIT_COMMITTER_EMAIL=cases@example.invalid
+# 外から受け継いだものを消す。PRE_PUSH_REQUIRE_ALL は CI が渡し、残すと C6 は何を壊しても通る。
+isolate_git_env
+unset PRE_PUSH_REQUIRE_ALL
 
 work="$(mktemp -d)" || exit 1
 trap 'cd / && rm -rf "$work"' EXIT
@@ -36,24 +33,6 @@ pick_stderr="$work/pick.err"
 
 co_author='Co-Authored-By: cases <cases@example.invalid>'
 heading_prefix='Red のコミットの検査: 結果 '
-
-# ディレクトリへ cd し、git がそのリポジトリを指していることを確かめる。指していなければ表ごと止める。
-#
-# Why: `--show-toplevel` だけでは足りない。GIT_DIR が漏れていても `$dir` を返し、`--absolute-git-dir`
-# だけが外側を指す。`--show-toplevel` の比較は、GIT_WORK_TREE だけが漏れたときの分として残す。
-#
-# $1 使い捨てのリポジトリのディレクトリ
-enter_repo() {
-  local dir="$1" real git_dir top is_own_repo=no
-  cd "$dir" || exit 1
-  real="$(pwd -P)"
-  git_dir="$(git rev-parse --absolute-git-dir)"
-  top="$(git rev-parse --show-toplevel)"
-  [ "$git_dir" = "$real/.git" ] && [ "$top" = "$real" ] && is_own_repo=yes
-  [ "$is_own_repo" = yes ] && return 0
-  printf 'NG   %s ではなく別のリポジトリを指している(git dir: %s / toplevel: %s)\n' "$dir" "$git_dir" "$top"
-  exit 1
-}
 
 # 使い捨てのリポジトリを `main` で作って cd し、`main` に base のコミットを置いてから `pr` を分ける。
 # HEAD は `pr` に置いたまま終わる。
