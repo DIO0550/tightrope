@@ -4,28 +4,48 @@
 
 PR ごとに CI の `Mutants` ワークフローが走る。中身と、そうした理由は
 [`.github/workflows/mutants.yml`](../../.github/workflows/mutants.yml) が持つ。
+実装の検証（`implementation-flow` フェーズ 6）では、`test-reviewer` が下の「走らせる」ブロックで同じものを走らせる。
 
 ## 手元での走らせ方
 
-版は `mutants.yml` の `MUTANTS_INSTALL_VERSION` から読み、入れる前に道具の cooldown を通す
-（[`harness/deps/README.md`](../deps/README.md)「道具の cooldown」）。
+導入（`test-reviewer` は走らせない）。版は `mutants.yml` の `MUTANTS_INSTALL_VERSION` から読み、
+入れる前に道具の cooldown を通す（[`harness/deps/README.md`](../deps/README.md)「道具の cooldown」）。
 
 ```bash
 version="$(sed -n 's/^ *MUTANTS_INSTALL_VERSION: "\(.*\)"$/\1/p' .github/workflows/mutants.yml)"
 bash harness/deps/tool-cooldown.sh cargo-mutants "$version" && cargo install cargo-mutants --locked --version "$version"
-git add -N <新しく足したファイル>
-git diff "$(git merge-base origin/main HEAD)" > "${TMPDIR:-/tmp}/pr.diff"
-cargo mutants --in-diff "${TMPDIR:-/tmp}/pr.diff"
 ```
 
-- `git add -N` を忘れると、まだ追跡していないファイルが差分に出ず、そこの変異が 0 件のまま通る
+走らせる（1 回のシェルで走らせる）。最後の 2 行が、結果を置いた絶対パスと cargo mutants の終了コードを出す。
+
+```bash
+diff_file="$(mktemp)"
+{
+  git diff "$(git merge-base origin/main HEAD)"
+  git ls-files --others --exclude-standard -z | xargs -0 -r -n1 git diff --no-index /dev/null
+} > "$diff_file"
+out="$(mktemp -d)"
+status=0
+cargo mutants --in-diff "$diff_file" -o "$out" || status=$?
+printf '%s\n' "$out"
+printf 'cargo mutants の終了コード: %s\n' "$status"
+```
+
+- まだ追跡していないファイルは `git diff --no-index` で差分に足す。足さないと、そこの変異が 0 件のまま通る。
+  Why not（`git add -N`）: index を書き換えるので、走らせる前と後で `git status` が変わる
+- `{ }` は、追跡していないファイルがあると終了コード 123 で終わる（`git diff --no-index` が差分ありで 1 を返す）。
+  なので次の行へ `&&` でつながない
 - 差分は走らせる直前に作る。作った後に木を変えると、差分と木が食い違う
 
 ## 結果の読み方
 
-生き残った変異は `mutants.out/missed.txt`、タイムアウトは `mutants.out/timeout.txt` に 1 行ずつ出る
+生き残った変異は `-o` に渡したディレクトリの下の `mutants.out/missed.txt`、タイムアウトは
+`mutants.out/timeout.txt` に 1 行ずつ出る
 （変異ごとの差分とログは `mutants.out/diff/` と `mutants.out/log/`）。CI ではアーティファクト
-`mutants-out` から取れる。Rust を変えない差分では `mutants.out` が作られず、生き残り無しとして読む。
+`mutants-out` から取れる。
+
+変異が 1 件も無い差分（Rust を変えない・テストだけを変える等）では、終了コード 0 で、`-o` のディレクトリに
+`mutants.out` が作られない。生き残り無し（変異 0 件）として読む。
 
 **合否は `missed.txt` が空かどうかで決める。** タイムアウトだけなら通す（変異が無限ループなどを
 起こし、テストがタイムアウトで止めている = 捕まえている）。

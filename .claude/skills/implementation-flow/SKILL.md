@@ -336,7 +336,7 @@ Issue: #<番号>
 | `over-guard-reviewer` | 過剰なフォールバック / ブロック | 実行されるコード(下) |
 | `security-reviewer` | セキュリティ | `src/` のうち外部入力・子プロセス・ファイル書き込みを扱うもの、`Cargo.toml` `Cargo.lock` `.cargo/` `.github/` `.claude/hooks/` `.claude/agents/` `.claude/settings.json` `harness/githooks/` `harness/deps/`、または差分が語 `Command::new` / `unsafe` / `include_str!` を含む |
 | `harness-reviewer` | 規約・仕様書・ハーネス | `AGENTS.md` `rules/` `docs/` `.claude/` `.github/` `harness/` |
-| `test-reviewer` | テストが守っているか(ミューテーション) | 実行されるコード(下)。2 段目 |
+| `test-reviewer` | テストが守っているか(差分の行の変異(cargo-mutants)の生き残りと、手で壊す実測) | 実行されるコード(下)。2 段目 |
 
 「実行されるコード」は `src/` `tests/` `.claude/hooks/` `.github/scripts/` `harness/githooks/` と
 `harness/deps/*.sh` `harness/records/*.sh`。設定(`Cargo.toml` `.cargo/` `.github/workflows/`)は含めない。
