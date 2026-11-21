@@ -16,8 +16,8 @@ model: inherit
 - **ゴール**
 - **計画と却下案** — `plan-reviewer` を通した計画。却下済みの案を、新しい根拠なしに採らない
 - **Issue 番号**
-- **種類** — Issue の `flow:*` ラベル。`flow:bugfix` / `flow:refactor` では**工程**も(値は
-  `.claude/skills/implementation-flow/SKILL.md` フェーズ 5 の渡すもの)
+- **種類と工程** — 種類は Issue の `flow:*` ラベル。工程の値は
+  `.claude/skills/implementation-flow/SKILL.md`「作業の種類」の表
 - (直しのときだけ)**直す指摘** — 呼び出し側が採用したものだけ。採らなかった指摘には手を出さない
 
 ## 先に読むもの
@@ -40,9 +40,11 @@ model: inherit
 4. 依存を足すなら `harness/deps/resolve.sh` を通す(`cargo add` を素で叩かない)
 5. `.claude/skills/implementation-flow/SKILL.md` フェーズ 7 の `PRE_PUSH_REQUIRE_ALL=1 bash harness/githooks/pre-push`
    を走らせ、**終了コードで**判定する(検査の一覧はここへ写さない)。
-   `flow:bugfix` の `工程: 再現テスト` だけは、再現テストが落ちる状態が正しい。
-   `.claude/skills/implementation-flow/bugfix.md` フェーズ 5 の第 1 工程で親が確かめる条件に照らし、満たすなら
-   再現テストを走らせる検査の出力を返し、満たさないならその時点で止めて返す
+   `SKILL.md`「作業の種類」の表で第 1 工程のテストが落ちる種類の第 1 工程は、テストが落ちる状態が正しい。
+   `SKILL.md` フェーズ 5「第 1 工程で確かめること」と種類のファイルのフェーズ 5 で親が確かめる条件に照らし、
+   満たすなら落ちたテストを走らせる検査の出力を返し、満たさないならその時点で止めて返す。この工程で
+   `.claude/hooks/post-edit-rust.sh` が返すコンパイルエラーの診断は、計画の落ち方が b(`SKILL.md`
+   フェーズ 5)なら正しい状態なので、実装を足して消さない
 
 ## 返すもの
 

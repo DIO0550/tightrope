@@ -29,6 +29,10 @@ run_check "行数のラチェット" bash harness/records/count.sh --ratchet
 # 上の数え方そのものの判定表。
 run_check "集計の判定表" bash harness/records/count-cases.sh
 
+# 単体テストのファイルの行数(rules/testing.md「段をまたぐテストと単体のテストを分ける」)と、その判定表。
+run_check "テストのファイルの行数" bash harness/githooks/lib/test-file-length.sh src
+run_check "テストのファイルの行数の判定表" bash harness/githooks/lib/test-file-length-cases.sh
+
 # 単体テストの置き場所(rules/testing.md「段をまたぐテストと単体のテストを分ける」)と、その判定表。
 run_check "テストの置き場所" bash harness/githooks/lib/test-placement.sh src
 run_check "テストの置き場所の判定表" bash harness/githooks/lib/test-placement-cases.sh
@@ -46,13 +50,21 @@ run_check "pre-push の結果行の判定表" bash harness/githooks/lib/check-ta
 run_check "カナリアのテスト" bash .claude/hooks/hook-canary-test.sh
 run_check "セッション URL の通知のテスト" bash .claude/hooks/session-url-notice-test.sh
 
-# jq を使うフックのテスト。jq が無い環境では判定が変わっていなくても落ちるので飛ばす。
+# CI の Red のコミットの検査(.github/workflows/red-commits.yml)の判定表。git と bash だけで走るので飛ばさない。
+run_check "Red のコミットの検査の判定表" bash .github/scripts/red-commits-cases.sh
+
+# jq を使うフックと CI のスクリプトのテスト。jq が無い環境では判定が変わっていなくても落ちるので飛ばす。
 command -v jq >/dev/null 2>&1 || skip_following_checks "jq が無い"
 run_check "push 前の検査フックのテスト" bash .claude/hooks/pre-push-check-test.sh
 run_check "マージ後の振り返りの促しのテスト" bash .claude/hooks/post-merge-review-test.sh
 run_check "PR が閉じる Issue の検査の判定表" bash .github/scripts/check-pr-closing-issue-cases.sh
 run_check "同じ Issue を閉じる他の PR の検査の判定表" bash .github/scripts/check-duplicate-issue-pr-cases.sh
 run_check "sticky コメントの投稿・差し替えの判定表" bash .github/scripts/upsert-sticky-comment-cases.sh
+resume_checks
+
+# 道具の cooldown の判定表は偽の index を curl で読み、版の一覧を jq で読むので、curl と jq の両方が要る。
+{ command -v curl >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; } || skip_following_checks "curl か jq が無い"
+run_check "道具の cooldown の判定表" bash harness/deps/tool-cooldown-cases.sh
 resume_checks
 
 # 編集後の fmt / clippy フックのテストは使い捨てのクレートを作るので、cargo と jq の両方が要る。

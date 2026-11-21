@@ -28,12 +28,15 @@ description: "tightrope の実装を ゴールの確定 → タスクの分割 �
 **作業の種類は Issue の `flow:*` ラベルで決まる。** 種類ごとの手順は**種類のファイル**が持ち、
 このファイルの各フェーズに足す・置き換える。決め方はフェーズ 1「種類の確定」。
 
-| ラベル | 種類のファイル | 変わるフェーズ |
-| --- | --- | --- |
-| `flow:feature` | 無し(このファイルのまま) | 無し |
-| `flow:bugfix` | [`bugfix.md`](bugfix.md) | 1 / 3 / 5 / 6 / 7 に足す |
-| `flow:refactor` | [`refactor.md`](refactor.md) | 3 / 5 / 6 / 7 に足す |
-| `flow:investigation` | [`investigation.md`](investigation.md) | 1 に足し、3 / 4 / 8 を置き換え、5〜7 は無い |
+| ラベル | 種類のファイル | 変わるフェーズ | 工程の値(第 1 / 第 2) | 第 1 工程のテスト |
+| --- | --- | --- | --- | --- |
+| `flow:feature` | [`feature.md`](feature.md) | 3 / 5 に足す | `Red` / `Green` | 落ちる |
+| `flow:bugfix` | [`bugfix.md`](bugfix.md) | 1 / 3 / 5 / 7 に足す | `再現テスト` / `修正` | 落ちる |
+| `flow:refactor` | [`refactor.md`](refactor.md) | 3 / 5 / 6 / 7 に足す | `現状の固定` / `リファクタ` | 通る |
+| `flow:investigation` | [`investigation.md`](investigation.md) | 1 に足し、3 / 4 / 8 を置き換え、5〜7 は無い | 無し | 無し |
+
+工程の値と、第 1 工程のテストが落ちるか通るかは、この表だけが決める(使い方はフェーズ 5)。
+このファイルの「**Red の種類**」は、この表で第 1 工程のテストが「落ちる」種類を指す。
 
 **検証を軽くする種類は作らない。** どの種類も計画(investigation では調査)の検証を省かない。
 小さな作業向けに検証を省く種類を作ると、「役割の分担」が捨てた「修正の小ささ」の線引きが
@@ -57,10 +60,12 @@ description: "tightrope の実装を ゴールの確定 → タスクの分割 �
 - **親はリポジトリの中のファイルを編集しない**(`src/` に限らず `.claude/` `harness/` `docs/` `rules/` も)。
   修正の小ささは理由にしない(1 行でも `implementer` に渡す)。線引きを毎回判断すると分担が崩れる
   (→ `.claude/hooks/block-parent-session-edit.sh`)
-- 親が作業ツリーを変えてよいのは、判断を伴わない次の 2 つだけ
+- 親が作業ツリーを変えてよいのは、判断を伴わない次の 3 つだけ
   - 自動修正コマンド(`cargo fmt`)をフェーズ 7 で走らせる
   - 検証エージェントの書き換えを、基準のコミットへ `git restore` / `git clean` で戻す
     (「サブエージェントの使い方」)
+  - フェーズ 5 で第 1 工程から積み直すときに、`git reset` で第 1 工程のコミットの前へ戻し、
+    前の第 2 工程の実装を `git restore --source` で作業ツリーへ戻す(手順はフェーズ 5)
 - Issue・PR 本文を書くのは親。`planner` / `implementer` / `investigator` は返すだけ
 - この分担は `implementation-flow` の中だけで、`harness-record` / `harness-growth` には及ばない
 
@@ -126,7 +131,7 @@ Issue: #<番号>
 
 1. **変更するファイルと、そこに何を置くか。** 帰属先は `rules/architecture.md` で決める。
    行の単位で直す記述があるなら「何行目のどの記述をどう直すか」まで書く。
-   **公開 API を変える場合は、それを呼んでいるテスト(`src/<名前>/tests.rs` と `tests/`)も
+   **公開 API を変える場合は、それを呼んでいるテスト(`src/<名前>/tests.rs` と `src/<名前>/tests/<観点>.rs`、クレート直下の `tests/`)も
    変更するファイルとして数える**(数え漏らすと `cargo test` がコンパイルで落ちる状態で計画が固まる)。
    **enum へバリアントを足す場合も、それを `match` している箇所を数える**(出し分けの表・
    `--format` ごとの出力のように、足したバリアントの扱いを決める場所は計画で挙げないと漏れる)
@@ -213,25 +218,96 @@ Issue: #<番号>
 ゴール: <ゴール>
 Issue: #<番号>
 種類: <`flow:*` のラベル>
-工程: <`flow:bugfix` は 再現テスト / 修正、`flow:refactor` は 現状の固定 / リファクタ。この 2 つのときだけ>
+工程: <「作業の種類」の表の工程の値>
 計画: <plan-reviewer を通した計画と却下案>
 ```
 
 - 実装の手順は `.claude/agents/implementer.md` が持つ
-- **`flow:bugfix` / `flow:refactor` では `implementer` を 2 つの工程に分けて起動する。** `implementer` は
-  commit しないので、1 回で書かせると「テストだけが先に入ったコミット」が作れない。工程ごとに何を
-  書かせ、何を確かめるかは種類のファイルのフェーズ 5 が持つ
+- **`implementer` を 2 つの工程に分けて起動する。** `implementer` は commit しないので、1 回で書かせると
+  「テストだけが先に入ったコミット」が作れない。工程ごとに何を書かせるかと、その種類に固有の確かめ方は
+  種類のファイルのフェーズ 5 が持つ
   - **第 1 工程はテストだけを書かせる。** 返ってきたら「サブエージェントの使い方」の `git status --porcelain`
     の突き合わせを、計画の第 1 工程のテストのファイルだけに狭める(`tests.rs` を新しく作るときに
-    実装のファイルへ足す `#[cfg(test)] mod tests;` の 2 行は、テストの配線としてここに含める)。種類のファイルの確かめ方で
-    合格したら commit する。これが **第 1 工程のコミット**で、第 2 工程以降はこれと比べる
+    実装のファイルへ足す `#[cfg(test)] mod tests;` の 2 行と、種類のファイルが第 1 工程に許す配線は、
+    テストの配線としてここに含める)。下の「第 1 工程で確かめること」で合格したら commit する。これが
+    **第 1 工程のコミット**で、第 2 工程以降はこれと比べる
+  - **Red の種類(「作業の種類」)は、第 1 工程のコミットのメッセージの最後の段落(`Co-Authored-By` と
+    同じ段落)に `TDD: red` の行を置く。** 最後の段落に無いとトレーラとして読まれない。拾うときは次の
+    コマンドで、印の無いコミットは出ない(CI の `red-commits.yml` と同じ拾い方)
+
+    ```bash
+    bash .github/scripts/red-commits.sh origin/main HEAD
+    ```
+
   - **第 1 工程に書くものが無いなら、第 1 工程を省く。** 第 2 工程を起動する前の HEAD を第 1 工程のコミットの
     代わりとして Issue に書く(どの場合に無いかは種類のファイル)
   - **第 2 工程で実装を変えさせる。** フェーズ 6・7 の直しも第 2 工程の値で渡す
+- **第 1 工程のテストを書き換える必要が出たら、計画へ戻して第 1 工程から積み直す。** 第 2 工程の側で
+  書き換えると、書き換えた後のテストは落ちたのを確かめていない(`rules/tdd.md`「Red はコミットに残し、
+  落ちたのを確かめてから Green へ進む」)。どのときもブランチに Red は 1 つにする
+  - 第 1 工程のコミットごと `git reset` で戻し、第 1 工程から積み直す。push した後でも、マージ前の PR の
+    作業ブランチなら積み直したものに置き換えてよい。**積み直す前に** `git ls-remote origin <ブランチ>` で
+    リモートのブランチの SHA を記録し、`git push --force-with-lease=<ブランチ>:<記録した SHA> origin <ブランチ>`
+    で置き換える。引数の無い `--force-with-lease` は push の時点の追跡 ref を期待値にするので、積み直す間の
+    fetch で追跡 ref が進むと、確かめていないコミットまで上書きする。拒まれたら(`stale info`)止め、
+    `git fetch origin` の後の `git log <記録した SHA>..origin/<ブランチ>` で取り込まれていないコミットを確かめる
+  - 第 2 工程を起動する前に、親は前の第 2 工程の実装を
+    `git restore --source=<前の第 2 工程のコミット> -- <実装のファイル>` で戻して使ってよい(一から書き直させない)
 - **`implementer` が計画から外れて止めて返ってきたら、** 親が外れた理由を Issue に追記してから、
   続けるかを決めて起動し直す。後でまとめて書くと理由が思い出せなくなる
 - **Issue・PR 本文に事実の主張を書いたら、書き終えるたびに親が `claim-verification` スキルで
   確かめる**(フェーズ6まで持ち越さない。`.claude/skills/claim-verification/`)
+
+### 第 1 工程で確かめること
+
+返ってきた検査の出力で、親が次を確かめる。違えば第 1 工程になっていないので、計画へ戻す。
+
+- **Red の種類: 対象のテストだけが計画に書いた落ち方で落ち、残りの検査(`pre-push` の残り)は通る。**
+  通った・計画と違う落ち方をした・他のテストも落ちた、のどれかなら違う
+- それ以外の種類: 足したテストを走らせる検査を含め、すべて通る
+
+落ち方は次の 3 つ。種類のファイルが、そのうちどれを許すかを決める。
+
+| 落ち方 | 何で落ちるか | 計画に書くこと | 第 1 工程で照らすもの |
+| --- | --- | --- | --- |
+| a | assert の失敗 | どの assert がどの値で落ちるか(期待した値と、実際に出る値) | 落ちた assert と値 |
+| b | 足す・形を変える API を指すコンパイルエラー | どの API を指して、どのコードで落ちるか | エラーが計画の API を指しているか。`clippy` も同じエラーで落ちるが、b に数える |
+| c | 判定表・テストのスクリプト(`*-cases.sh` / `*-test.sh`)の食い違い | どのケースの期待と実際が食い違うか | 食い違ったケース |
+
+### 第 2 工程以降で確かめること
+
+第 2 工程と、フェーズ 6・7 の直しが返ってくるたびに、親は返ってきた検査の出力で、計画に記録した第 1 工程の
+テスト名(判定表・テストのスクリプトならケース名)ごとに、そのテストが走って `ok` の行になっていることを照らす。
+出力に無いもの・`ignored` のもの・`running 0 tests` で 0 件のものは通ったと数えず、計画へ戻す。ただし LSP を
+要する `#[ignore]` のテストは `cargo test -- --ignored <名前>` の出力で照らし、サーバが無くて走らせられないなら
+計画へ戻さず、照らせなかったことを PR 本文の `- Green:` の行に書く(`rules/testing.md`「LSP を要するテストは、
+飛ばしたことが分かる形にする」)。検査の終了コード
+だけでは足りない。親モジュールの宣言の上に `#[cfg(feature = "x")]` を足すと、消した行も無く第 1 工程のテストの
+ファイルにも差分が出ないまま、そのテストは既定の `cargo test` から消え、0 件でも成功で終わる。
+
+続けて次の 2 つを走らせる(作業ツリーと比べるので、commit の前でも後でもよい)。
+どちらも出力が空なら合格で、出たら外れた行を指摘として `implementer` に戻す。`<第 1 工程のコミット>` は、
+省いたときはその代わりに Issue に書いた HEAD。
+
+1. **第 1 工程のテストの行を消していない・変えていない・走らなくしていない**(Red の種類)。行を足すのは
+   許す(境界値・回帰のテストや、`test-reviewer` の指摘で足すテスト)が、足した行のうち `#[ignore` /
+   `#[should_panic` / `#[cfg(`(どれも `#![` の形を含む)/ `return;` で始まるものは違反にする。第 1 工程を
+   省いたとき(`Red: 無し`)は走らせない(テストのファイルが無く、pathspec が空だとすべてのファイルの差分が出る)
+
+   ```bash
+   git diff --numstat <第 1 工程のコミット> -- <第 1 工程のテストのファイル> | awk '$2 != 0'
+   git diff -U0 <第 1 工程のコミット> -- <第 1 工程のテストのファイル> \
+     | grep -E '^\+[[:space:]]*(#!?\[[[:space:]]*(ignore|should_panic|cfg\()|return[[:space:]]*;)'
+   ```
+
+2. **テストを走らせる配線を消していない**(すべての種類)。配線を消すと、テストを書き換えずに走らなく
+   できる(`src/lib.rs` の `pub mod x;` を消すと、その下のテストごと消えても `cargo test` は通る)。
+   `flow:refactor` の移動の片割れの扱いは [`refactor.md`](refactor.md)
+
+   ```bash
+   git diff -U0 <第 1 工程のコミット> -- src Cargo.toml .github/workflows harness/githooks/pre-push \
+     | grep -E '^-.*(#\[cfg\(test\)\]|#\[test\]|mod tests|mod [a-z0-9_]+;|-cases\.sh|-test\.sh|\[\[test\]\])'
+   ```
 
 ## フェーズ 6: 実装の検証(観点別のレビューエージェント)
 
@@ -242,7 +318,8 @@ Issue: #<番号>
 
 1. 下の表で「呼ぶ条件」に当たるエージェントのうち `test-reviewer` 以外を、1 つのメッセージで
    並列に起動する
-2. 返ってきた指摘の採否を決め、採用したものを種類(と工程)と一緒に `implementer` に渡して直させてから、
+2. 返ってきた指摘の採否を決め、採用したものを種類と工程と一緒に `implementer` に渡して直させ、
+   フェーズ 5「第 2 工程以降で確かめること」を通してから、
    **`test-reviewer` を単独で、前面で起動する**(同じメッセージに
    他のツール呼び出しを並べない)。実装を壊して確かめるので、並べると他のエージェントが壊れた
    状態を実装として読む。背景になると(前面で起動して約 120 秒で移された場合を含む)git 操作の
@@ -259,7 +336,7 @@ Issue: #<番号>
 | `over-guard-reviewer` | 過剰なフォールバック / ブロック | 実行されるコード(下) |
 | `security-reviewer` | セキュリティ | `src/` のうち外部入力・子プロセス・ファイル書き込みを扱うもの、`Cargo.toml` `Cargo.lock` `.cargo/` `.github/` `.claude/hooks/` `.claude/agents/` `.claude/settings.json` `harness/githooks/` `harness/deps/`、または差分が語 `Command::new` / `unsafe` / `include_str!` を含む |
 | `harness-reviewer` | 規約・仕様書・ハーネス | `AGENTS.md` `rules/` `docs/` `.claude/` `.github/` `harness/` |
-| `test-reviewer` | テストが守っているか(ミューテーション) | 実行されるコード(下)。2 段目 |
+| `test-reviewer` | テストが守っているか(差分の行の変異(cargo-mutants)の生き残りと、手で壊す実測) | 実行されるコード(下)。2 段目 |
 
 「実行されるコード」は `src/` `tests/` `.claude/hooks/` `.github/scripts/` `harness/githooks/` と
 `harness/deps/*.sh` `harness/records/*.sh`。設定(`Cargo.toml` `.cargo/` `.github/workflows/`)は含めない。
@@ -291,8 +368,15 @@ diff_text | grep -cE 'Command::new|unsafe|include_str!'   # security-reviewer �
 - **PR 本文は差分の説明に絞る。** 判断の履歴は Issue 側にある
 - **本文に `Closes #<Issue 番号>` を書く**(`AGENTS.md`「着手した Issue は、その回で閉じる」)。
   `.github/workflows/pr-closing-issue.yml` が、閉じる Issue を持たない PR を落とす
-- CI(fmt / clippy / doc / test / ハーネスの検査)を通す。push 前の検査や CI が落ちたら、直しは
-  種類(と工程)と一緒に `implementer` に渡す(判断を伴わない自動修正コマンドだけは親が走らせてよい →「役割の分担」)
+- **Red の種類(「作業の種類」)は、本文に 2 つの工程のコミットを
+  `- Red: <hash>` / `- Green: <hash…>` の形で並べる。** `- Red:` は 1 つだけ(ブランチに Red は 1 つ。フェーズ 5)。
+  第 1 工程を省いたなら `- Red: 無し(<理由>)`。
+  CI(`red-commits.yml`)が Red のコミットを確かめる(何を確かめるかは `.github/scripts/check-red-commits.sh` の冒頭)。
+  走らせるのはマージコミットではなく PR の先端なので、main より遅れていて先端が通らないなら main を取り込む。
+  読む人も `red-commits.sh` で Red のコミットを取り出せる。squash / rebase でマージしても
+  PR の枝は `refs/pull/<PR 番号>/head` から取り出せるので、マージの方式の設定は変えない
+- CI(fmt / clippy / doc / test / ハーネスの検査 / Red のコミット)を通す。push 前の検査や CI が落ちたら、直しは
+  種類と工程と一緒に `implementer` に渡す(判断を伴わない自動修正コマンドだけは親が走らせてよい →「役割の分担」)
 
 **push の前に、まずフックが発火する環境かを確かめ、続けて git hooks と同じ検査を
 `pre-push` ごと走らせ、終了コードで判定する。**
@@ -350,7 +434,7 @@ PRE_PUSH_REQUIRE_ALL=1 bash harness/githooks/pre-push   # git hooks と同じ検
   直すのは `implementer` で、検証エージェントとは別に起動する
 - **`implementer` から返ったら、`git status --porcelain` を「計画のファイル表と、渡した指摘の対象」と
   突き合わせる。** 一致したら commit して、それを作業ツリーの基準にする(push はフェーズ 7)。
-  2 つの工程に分ける種類の第 1 工程は、フェーズ 5 が突き合わせる範囲を狭める
+  第 1 工程は、フェーズ 5 が突き合わせる範囲を狭める
 - **それ以外のエージェントから返ったら、指摘を読む前に作業ツリーが基準のまま
   (`git status --porcelain` が空)かを見る。** エージェント定義に「変更するな」と書いても
   書き換えることがある。戻さずに指摘へ対応すると、`implementer` の変更とエージェントの書き換えが
@@ -385,6 +469,7 @@ PRE_PUSH_REQUIRE_ALL=1 bash harness/githooks/pre-push   # git hooks と同じ検
 | `.claude/agents/implementer.md` | 実装するエージェントの受け取るもの・返すもの | フェーズ 5 / 6 / 7 |
 | `.claude/agents/` の `plan-reviewer.md`・`investigation-reviewer.md` 以外の `*-reviewer.md` | 実装の検証観点(エージェントが読む) | フェーズ 6 |
 | [`reviewer-instructions.md`](reviewer-instructions.md) | 実装の検証の観点別エージェントへの共通の指示(エージェントが読む) | フェーズ 6 |
+| [`feature.md`](feature.md) | `flow:feature` で足す手順 | `flow:feature` で、「作業の種類」の表のフェーズ |
 | [`bugfix.md`](bugfix.md) | `flow:bugfix` で足す手順 | `flow:bugfix` で、「作業の種類」の表のフェーズ |
 | [`refactor.md`](refactor.md) | `flow:refactor` で足す手順 | `flow:refactor` で、「作業の種類」の表のフェーズ |
 | [`investigation.md`](investigation.md) | `flow:investigation` で足す・置き換える手順 | `flow:investigation` で、「作業の種類」の表のフェーズ |

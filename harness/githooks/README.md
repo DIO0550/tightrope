@@ -13,7 +13,7 @@ git ネイティブのフック置き場。`core.hooksPath` をここへ向け�
 検査の一覧の原本は [`pre-push`](pre-push) 自身。ここ・スキル・CI へ写さない
 （CI の `harness` ジョブは `PRE_PUSH_REQUIRE_ALL=1 bash harness/githooks/pre-push` をそのまま走らせる）。
 
-道具（`cargo` / `jq`）が無い区間は飛ばし、飛ばしたことを最後の行に出す（下の「結果の読み方」）。
+道具（`cargo` / `jq` / `curl`）が無い区間は飛ばし、飛ばしたことを最後の行に出す（下の「結果の読み方」）。
 無条件のゲートは CI（層 1）にある。
 
 ## 配線 — cargo に `prepare` が無い
