@@ -39,7 +39,7 @@ let tightly_coupled = strength >= Strength::Model && distance >= Distance::Other
 if tightly_coupled && volatility.is_high() { ... }
 ```
 
-条件が 2 つ以上要る理由がコードから読み取れないなら、変数のそばに Why を残す。
+条件が 2 つ以上要る理由がコードから読み取れないなら、その理由は Issue に書く。
 単独の条件（`dependencies.is_empty()` など）はそのまま置いてよい。
 
 ## 内容を表さない汎用語を使わない
