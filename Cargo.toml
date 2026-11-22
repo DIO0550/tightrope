@@ -18,3 +18,5 @@ expect_used = "deny"
 # (AGENTS.md「依存の更新は cooldown を通す」)。
 [dependencies]
 clap = { version = "4.6.7", features = ["derive"] }
+# features は既定のまま。絞っても外れるのは build script も proc macro も持たない toml_writer だけで、`toml::Table` の `FromStr` は `serde` feature の下にあり serde_core は外せない。
+toml = "1.2.0"
