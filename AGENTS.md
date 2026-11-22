@@ -7,7 +7,7 @@
 
 - 何を作るか: **モジュール間の結合を統合強度・距離・変動性から測り、バランスを理由付きで判定する
   CLI**（`docs/tightrope-plan.md`）。出力は `coupling.json` を元に terminal / markdown / html
-- 言語: Rust（edition 2024）。構成: `src/lib.rs` が本体、`src/main.rs` は引数を受けて呼ぶだけ
+- 言語: Rust（edition 2024）。構成: `crates/` の Cargo workspace。`crates/tightrope/src/main.rs` は引数を受けて呼ぶだけ
 - 解析: tree-sitter（構文）＋ LSP（意味情報）＋ git 履歴（変動性）。対象は TypeScript / Rust / Java / Swift
 - 外部依存: `clap`（derive。引数）・`toml`（`tightrope.toml` の読み込み）。足すときは「依存の更新は cooldown を通す」に従い、ここへ足す
 
@@ -112,7 +112,7 @@
 | 4 | skill / agents / rules | お願いベース | 読まれたとき | `.claude/` / `rules/` |
 
 **ツールで落とせるものは規約の文に留めない**（`unwrap` / `expect` の禁止を `Cargo.toml` の
-`[lints.clippy]` に置いてあるのがこの適用）。
+`[workspace.lints.clippy]` に置いてあるのがこの適用）。
 
 ### CI で使うアクション
 

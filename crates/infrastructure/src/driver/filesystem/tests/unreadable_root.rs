@@ -1,5 +1,5 @@
 use super::fixture::fixture;
-use crate::codebase::{CodebaseError, typescript_paths_of};
+use crate::driver::filesystem::{CodebaseError, typescript_paths_of};
 use std::error::Error;
 use std::io;
 

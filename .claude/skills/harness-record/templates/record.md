@@ -58,7 +58,7 @@
 
 | 層 | 置いた場所 |
 | --- | --- |
-| `hook` | lint 設定(`Cargo.toml` の `[lints]` / `clippy.toml`)・自前の検出器(`.claude/hooks/lib/`)・git hooks(`harness/githooks/`)・CI |
+| `hook` | lint 設定(`Cargo.toml` の `[workspace.lints]` / `clippy.toml`)・自前の検出器(`.claude/hooks/lib/`)・git hooks(`harness/githooks/`)・CI |
 | `skill` | `.claude/skills/` の手順、`.claude/agents/` の観点 |
 | `case-law` | `harness/case-law/` の判例 |
 

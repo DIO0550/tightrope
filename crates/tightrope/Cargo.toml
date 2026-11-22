@@ -1,0 +1,15 @@
+[package]
+name = "tightrope"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "モジュール間の結合を統合強度・距離・変動性から測り、バランスを判定する CLI"
+repository.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+clap.workspace = true
+presentation = { path = "../presentation" }

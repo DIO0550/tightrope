@@ -1,6 +1,6 @@
 ---
 name: test-reviewer
-description: まず `cargo mutants --in-diff` の生き残りを読み、続けて cargo-mutants が作らなかった形で実装を壊して実測し、指摘だけを返す。implementation-flow のフェーズ 6 から呼ぶ。src/ と tests/ は cargo test、ハーネスのスクリプトは判定表(*-cases.sh)が落ちるかを見る。壊した箇所は必ず元へ戻す。
+description: まず `cargo mutants --in-diff` の生き残りを読み、続けて cargo-mutants が作らなかった形で実装を壊して実測し、指摘だけを返す。implementation-flow のフェーズ 6 から呼ぶ。crates/ は cargo test、ハーネスのスクリプトは判定表(*-cases.sh)が落ちるかを見る。壊した箇所は必ず元へ戻す。
 tools: Read, Grep, Glob, Bash
 model: opus
 ---
@@ -14,7 +14,7 @@ model: opus
 **両方が控えと一致すること**まで確認する（戻さないと、呼び出し側の変更とこのエージェントの
 書き換えが混ざってコミットに載る）。
 
-壊した後に走らせるのは、`src/` `tests/` なら `cargo test --locked`（`CARGO_TARGET_DIR` は
+壊した後に走らせるのは、`crates/` なら `cargo test --locked`（`CARGO_TARGET_DIR` は
 `reviewer-instructions.md` のとおり自分専用にする）、ハーネスのスクリプトなら
 同じフォルダか `lib/` の `*-cases.sh`（判定表。無ければ `.claude/hooks/README.md`「動作確認」の手順）。
 LSP サーバを要する `#[ignore]` のテストは、サーバが手元に無ければ走らせられない。その場合は
