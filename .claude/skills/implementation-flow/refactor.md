@@ -18,7 +18,7 @@
 拾う行。下のコマンドとその 2 を、フェーズ 5 で親が走らせる。
 
 ```bash
-git diff <第 1 工程のコミット> HEAD -- tests ':(glob)src/**/tests.rs' ':(glob)src/**/tests/**' \
+git diff <第 1 工程のコミット> HEAD -- ':(glob)crates/*/tests/**' ':(glob)crates/*/src/**/tests.rs' ':(glob)crates/*/src/**/tests/**' \
   ':(glob)**/*-cases.sh' ':(glob)**/cases-fixtures.sh' ':(glob)**/cases-report.sh'
 ```
 

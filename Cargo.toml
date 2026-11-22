@@ -1,22 +1,24 @@
-[package]
-name = "tightrope"
+[workspace]
+members = ["crates/*"]
+resolver = "3"
+
+[workspace.package]
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.85"
-description = "モジュール間の結合を統合強度・距離・変動性から測り、バランスを判定する CLI"
 repository = "https://github.com/DIO0550/tightrope"
 license = "MIT"
 
 # 本番コードでの unwrap / expect の禁止は、規約の文ではなくツールで落とす。
 # テストコード内は clippy.toml の allow-unwrap-in-tests / allow-expect-in-tests で許可する
 # (rules/coding.md「エラーと不在の表現」/ rules/testing.md「テスト内の unwrap / expect」)。
-[lints.clippy]
+[workspace.lints.clippy]
 unwrap_used = "deny"
 expect_used = "deny"
 
 # 依存は素の `cargo add` / `cargo update` ではなく harness/deps/resolve.sh を通して足す
 # (AGENTS.md「依存の更新は cooldown を通す」)。
-[dependencies]
+[workspace.dependencies]
 clap = { version = "4.6.7", features = ["derive"] }
 # features は既定のまま。絞っても外れるのは build script も proc macro も持たない toml_writer だけで、`toml::Table` の `FromStr` は `serde` feature の下にあり serde_core は外せない。
 toml = "1.2.0"

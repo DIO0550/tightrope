@@ -41,7 +41,7 @@ bash harness/records/count.sh --list <分類> # その分類の、窓が開い�
 
 上から順に「これで捕まえられるか」を確かめる。
 
-1. **lint の設定**(`Cargo.toml` の `[lints]` / `clippy.toml`)。既存の配線(編集後 clippy・push 前 clippy・CI)に
+1. **lint の設定**(`Cargo.toml` の `[workspace.lints]` / `clippy.toml`)。既存の配線(編集後 clippy・push 前 clippy・CI)に
    そのまま乗る
 2. **自前の検出器**(`.claude/hooks/lib/`)。リポジトリの構造を読まないと判定できないもの。
    配線は `.claude/hooks/`・`harness/githooks/`・`.github/` の 3 層(`.claude/hooks/README.md`「配線」)

@@ -1,4 +1,4 @@
-use crate::codebase::typescript_paths_of;
+use crate::driver::filesystem::typescript_paths_of;
 use std::fs;
 use std::path::{Path, PathBuf};
 

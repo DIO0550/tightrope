@@ -1,4 +1,5 @@
-use crate::config::*;
+use infrastructure::driver::config_file::*;
+use infrastructure::translation::config::*;
 use std::path::PathBuf;
 
 fn fixture(name: &str) -> PathBuf {

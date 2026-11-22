@@ -36,7 +36,7 @@ jobs:
           rust_version="$(python3 - <<'PY'
           import tomllib
           with open("Cargo.toml", "rb") as manifest:
-              version = tomllib.load(manifest)["package"]["rust-version"]
+              version = tomllib.load(manifest)["workspace"]["package"]["rust-version"]
           print(version + ".0" if version.count(".") == 1 else version)
           PY
           )"

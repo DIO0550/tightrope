@@ -1,4 +1,4 @@
-use crate::config::*;
+use crate::translation::config::*;
 
 #[test]
 fn test_from_config_text_four_keys_each_hold_own_value() {

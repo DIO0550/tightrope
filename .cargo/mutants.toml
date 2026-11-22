@@ -1,3 +1,6 @@
 # cargo-mutants が各段(check・ビルド・テスト)で走らせる cargo に足す引数。
 # --locked: Cargo.lock の外から依存を解決しない(harness/deps/README.md「lock の外で解決しない」)。
 additional_cargo_args = ["--locked"]
+# 変異を入れた crate のテストだけでなく、workspace のすべてのテストを走らせる。
+# workspace に分ける前と同じく、どの変異にもすべてのテストを当てる(既定は変異を入れた crate のテストだけ)。
+test_workspace = true

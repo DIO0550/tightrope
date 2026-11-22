@@ -57,7 +57,7 @@ description: "tightrope の実装を ゴールの確定 → タスクの分割 �
 | 6 実装の検証 | 親が観点別の `*-reviewer` を振り分け、採否を決める。直しは `implementer` へ戻す |
 | 7 PR / 8 マージ後 | 親(push 前検査・commit・push・PR・Issue への追記) |
 
-- **親はリポジトリの中のファイルを編集しない**(`src/` に限らず `.claude/` `harness/` `docs/` `rules/` も)。
+- **親はリポジトリの中のファイルを編集しない**(`crates/` に限らず `.claude/` `harness/` `docs/` `rules/` も)。
   修正の小ささは理由にしない(1 行でも `implementer` に渡す)。線引きを毎回判断すると分担が崩れる
   (→ `.claude/hooks/block-parent-session-edit.sh`)
 - 親が作業ツリーを変えてよいのは、判断を伴わない次の 3 つだけ
@@ -149,7 +149,7 @@ Issue: #<番号>
 [`harness/case-law/planning.md`](../../../harness/case-law/planning.md)(溜まったら `harness-growth` が書く)。
 
 1. **消す/変える公開 API があれば、呼び出し側を grep で数える。**
-   `grep -rn "\b<名前>\b"` / `grep -rn "<消す名前>"` で本番コード・テスト(`src/` `tests/`)を
+   `grep -rn "\b<名前>\b"` / `grep -rn "<消す名前>"` で本番コード・テスト(`crates/`)を
    数え、計画のファイル表に挙げる。計画が `harness/case-law/README.md`「判例の外の文書を変えたとき」に
    当たるなら、判例に残る写し・参照も数えてファイル表に挙げる。ファイル表で見落としやすいもの
    (コードの `use` を grep しても出ないもの。`README.md`・`docs/`・`rules/`・doc コメント)は、
@@ -305,7 +305,7 @@ Issue: #<番号>
    `flow:refactor` の移動の片割れの扱いは [`refactor.md`](refactor.md)
 
    ```bash
-   git diff -U0 <第 1 工程のコミット> -- src Cargo.toml .github/workflows harness/githooks/pre-push \
+   git diff -U0 <第 1 工程のコミット> -- crates Cargo.toml .github/workflows harness/githooks/pre-push \
      | grep -E '^-.*(#\[cfg\(test\)\]|#\[test\]|mod tests|mod [a-z0-9_]+;|-cases\.sh|-test\.sh|\[\[test\]\])'
    ```
 
@@ -331,15 +331,15 @@ Issue: #<番号>
 | `duplication-reviewer` | 重複 | 常に |
 | `comment-reviewer` | コメント・doc の記述と実物 | 常に |
 | `naming-reviewer` | 命名 | 常に |
-| `structure-reviewer` | 帰属先・依存方向・型・エラーと不在の表現 | `src/` |
-| `performance-reviewer` | 性能 | `src/` |
+| `structure-reviewer` | 帰属先・依存方向・型・エラーと不在の表現 | `crates/` |
+| `performance-reviewer` | 性能 | `crates/` |
 | `over-guard-reviewer` | 過剰なフォールバック / ブロック | 実行されるコード(下) |
-| `security-reviewer` | セキュリティ | `src/` のうち外部入力・子プロセス・ファイル書き込みを扱うもの、`Cargo.toml` `Cargo.lock` `.cargo/` `.github/` `.claude/hooks/` `.claude/agents/` `.claude/settings.json` `harness/githooks/` `harness/deps/`、または差分が語 `Command::new` / `unsafe` / `include_str!` を含む |
+| `security-reviewer` | セキュリティ | `crates/` のうち外部入力・子プロセス・ファイル書き込みを扱うもの、`Cargo.toml` `Cargo.lock` `.cargo/` `.github/` `.claude/hooks/` `.claude/agents/` `.claude/settings.json` `harness/githooks/` `harness/deps/`、または差分が語 `Command::new` / `unsafe` / `include_str!` を含む |
 | `harness-reviewer` | 規約・仕様書・ハーネス | `AGENTS.md` `rules/` `docs/` `.claude/` `.github/` `harness/` |
 | `test-reviewer` | テストが守っているか(差分の行の変異(cargo-mutants)の生き残りと、手で壊す実測) | 実行されるコード(下)。2 段目 |
 
-「実行されるコード」は `src/` `tests/` `.claude/hooks/` `.github/scripts/` `harness/githooks/` と
-`harness/deps/` 配下の `.sh`(`lib/` を含む)と `harness/records/*.sh`。設定(`Cargo.toml` `.cargo/` `.github/workflows/`)は含めない。
+「実行されるコード」は `crates/` `.claude/hooks/` `.github/scripts/` `harness/githooks/` と
+`harness/deps/` 配下の `.sh`(`lib/` を含む)と `harness/records/*.sh`。設定(`Cargo.toml`(crate のものを含む) `.cargo/` `.github/workflows/`)は含めない。
 壊したときに落ちるのがテストや判定表ではなく、ビルドや CI そのものなので。
 
 パスと語は次で出す。コミット前の新しいファイルも含める。数が 0 なら、その語の条件には当たらない。
