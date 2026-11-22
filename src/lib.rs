@@ -3,5 +3,6 @@
 
 pub mod cli;
 pub mod codebase;
+pub mod config;
 pub mod distance;
 pub mod strength;
