@@ -331,10 +331,10 @@ Issue: #<番号>
 | `duplication-reviewer` | 重複 | 常に |
 | `comment-reviewer` | コメント・doc の記述と実物 | 常に |
 | `naming-reviewer` | 命名 | 常に |
-| `structure-reviewer` | 帰属先・依存方向・型・エラーと不在の表現 | `crates/` |
-| `performance-reviewer` | 性能 | `crates/` |
+| `structure-reviewer` | 帰属先・依存方向・型・エラーと不在の表現 | `crates/*/src/` |
+| `performance-reviewer` | 性能 | `crates/*/src/` |
 | `over-guard-reviewer` | 過剰なフォールバック / ブロック | 実行されるコード(下) |
-| `security-reviewer` | セキュリティ | `crates/` のうち外部入力・子プロセス・ファイル書き込みを扱うもの、`Cargo.toml` `Cargo.lock` `.cargo/` `.github/` `.claude/hooks/` `.claude/agents/` `.claude/settings.json` `harness/githooks/` `harness/deps/`、または差分が語 `Command::new` / `unsafe` / `include_str!` を含む |
+| `security-reviewer` | セキュリティ | `crates/*/src/` のうち外部入力・子プロセス・ファイル書き込みを扱うもの、`Cargo.toml` `Cargo.lock` `.cargo/` `.github/` `.claude/hooks/` `.claude/agents/` `.claude/settings.json` `harness/githooks/` `harness/deps/`、または差分が語 `Command::new` / `unsafe` / `include_str!` を含む |
 | `harness-reviewer` | 規約・仕様書・ハーネス | `AGENTS.md` `rules/` `docs/` `.claude/` `.github/` `harness/` |
 | `test-reviewer` | テストが守っているか(差分の行の変異(cargo-mutants)の生き残りと、手で壊す実測) | 実行されるコード(下)。2 段目 |
 

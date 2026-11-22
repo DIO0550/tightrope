@@ -43,7 +43,7 @@ model: inherit
   `use` していないか、判定が LSP・git・ファイルを触っていないか、出力が判定をやり直していないか。
   循環が生まれていないか
 - **I/O（`std::fs` / `std::process::Command` / ネットワーク）が境界のモジュールの外に増えていないか。**
-  `grep -rn 'fs::\|Command::new' crates/` で入口を数え、`rules/coding.md`「I/O を持ってよい場所」の一覧と突き合わせる
+  `grep -rn 'fs::\|Command::new' crates/*/src/` で入口を数え、`rules/coding.md`「I/O を持ってよい場所」の一覧と突き合わせる
 - **`pub` が必要以上に広がっていないか。** モジュール外から触る必要の無いものが `pub` になって
   いないか、`pub(crate)` で足りないか。`mod.rs` を足していないか
 
