@@ -75,19 +75,16 @@ jobs:
       # 1 つずつ独立したステップにする。&& で連ねると途中の出力が流れて
       # 末尾しか見えず、どの検査で落ちたのかを読み違える。
       - name: cargo fmt
-        run: cargo fmt --check
+        run: bash harness/githooks/lib/rust-checks.sh fmt
 
       - name: cargo clippy
-        run: cargo clippy --all-targets -- -D warnings
+        run: bash harness/githooks/lib/rust-checks.sh clippy
 
-      # 公開項目の doc から非公開項目へ intra-doc link を張ると、リンクが解決しない。
       - name: cargo doc
-        run: cargo doc --no-deps
-        env:
-          RUSTDOCFLAGS: -D rustdoc::private_intra_doc_links
+        run: bash harness/githooks/lib/rust-checks.sh doc
 
       - name: cargo test
-        run: cargo test
+        run: bash harness/githooks/lib/rust-checks.sh test
 
   harness:
     # 層 3 のフックそのものは CI では発火しないが、判定が壊れたことはここでしか

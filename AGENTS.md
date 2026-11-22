@@ -9,7 +9,7 @@
   CLI**（`docs/tightrope-plan.md`）。出力は `coupling.json` を元に terminal / markdown / html
 - 言語: Rust（edition 2024）。構成: `src/lib.rs` が本体、`src/main.rs` は引数を受けて呼ぶだけ
 - 解析: tree-sitter（構文）＋ LSP（意味情報）＋ git 履歴（変動性）。対象は TypeScript / Rust / Java / Swift
-- 外部依存: `toml`（`tightrope.toml` の読み込み）。足すときは「依存の更新は cooldown を通す」に従い、ここへ足す
+- 外部依存: `clap`（derive。引数）・`toml`（`tightrope.toml` の読み込み）。足すときは「依存の更新は cooldown を通す」に従い、ここへ足す
 
 ## 規約一覧（常時ロード）
 
@@ -137,11 +137,11 @@ bash harness/deps/resolve.sh update
 ## Common Commands
 
 ```bash
-cargo build                                   # ビルド
-cargo run -- <引数>                           # 実行
-cargo fmt                                     # フォーマット
-cargo clippy --all-targets -- -D warnings     # Lint（テストコードも対象・警告をエラー扱い）
-cargo test                                    # テスト
+cargo build --locked                                    # ビルド
+cargo run --locked -- <引数>                            # 実行
+cargo fmt                                               # フォーマット
+cargo clippy --locked --all-targets -- -D warnings      # Lint（テストコードも対象・警告をエラー扱い）
+cargo test --locked                                     # テスト
 PRE_PUSH_REQUIRE_ALL=1 bash harness/githooks/pre-push   # push 前の検査をすべて（CI の harness ジョブと同じ）
-bash harness/records/count.sh                 # 分類ごとの再発の集計
+bash harness/records/count.sh                           # 分類ごとの再発の集計
 ```

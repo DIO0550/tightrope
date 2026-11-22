@@ -8,8 +8,10 @@
 # 使い方: bash .claude/hooks/post-edit-rust-test.sh
 set -euo pipefail
 
-hook="$(cd "$(dirname "$0")" && pwd)/post-edit-rust.sh"
-workspace="$(mktemp -d)"
+here="$(cd "$(dirname "$0")" && pwd)"
+hook="$here/post-edit-rust.sh"
+source "$here/lib/cases-fixtures.sh"
+workspace="$(make_crate_workdir)"
 trap 'rm -rf "$workspace"' EXIT
 
 failures=0
@@ -38,9 +40,9 @@ expect_result() {
   local reason=""
   if [ "$actual" -ne "$expected" ]; then
     reason="終了コードが ${expected} ではなく ${actual}"
-  elif [ -n "$expected_message" ] && ! printf '%s' "$output" | grep -qF "$expected_message"; then
+  elif [ -n "$expected_message" ] && ! printf '%s' "$output" | grep -qF -e "$expected_message"; then
     reason="出力に「${expected_message}」が無い"
-  elif [ -n "$unexpected_message" ] && printf '%s' "$output" | grep -qF "$unexpected_message"; then
+  elif [ -n "$unexpected_message" ] && printf '%s' "$output" | grep -qF -e "$unexpected_message"; then
     reason="出力に「${unexpected_message}」が出た"
   fi
 
@@ -54,19 +56,17 @@ expect_result() {
   failures=$((failures + 1))
 }
 
-# 依存を持たないクレートを作る。`[workspace]` を置くのは、外側のクレートの中に
-# 内側のクレートを置いたときに cargo が外側をワークスペースの根と取り違えないため。
-new_crate() {
-  local dir="$1"
-  mkdir -p "${dir}/src"
-  cat > "${dir}/Cargo.toml" <<'EOF'
-[package]
-name = "probe"
-version = "0.1.0"
-edition = "2024"
-
-[workspace]
-EOF
+# 1 行で ok / FAIL を出す。FAIL なら続けて理由を出す。
+#
+# $1 名前
+# $2 食い違った理由(空なら ok)
+report() {
+  if [ -z "$2" ]; then
+    echo "ok   $1"
+    return 0
+  fi
+  echo "FAIL $1: $2"
+  failures=$((failures + 1))
 }
 
 # clippy の警告（`needless_return`）を 1 件持つ、整形済みのソース。
@@ -84,8 +84,8 @@ clean_source='pub fn one() -> i32 {
 # --- クレートの外側と、その中に置いた別のクレート ---
 outer="${workspace}/outer"
 inner="${outer}/nested/inner"
-new_crate "$outer"
-new_crate "$inner"
+place_locked_crate "$outer"
+place_locked_crate "$inner"
 printf '%s' "$clean_source" > "${outer}/src/lib.rs"
 printf '%s' "$warned_source" > "${inner}/src/lib.rs"
 
@@ -93,7 +93,7 @@ printf '%s' "$warned_source" > "${inner}/src/lib.rs"
 # 「何も走らせなかった」からであって「走らせて通った」からではないことを確かめるため
 # （rules/testing.md「『出ない』を確かめるときは、対照を 1 件置く」）。
 warned="${workspace}/warned"
-new_crate "$warned"
+place_locked_crate "$warned"
 printf '%s' "$warned_source" > "${warned}/src/lib.rs"
 printf 'note\n' > "${warned}/README.md"
 
@@ -117,7 +117,7 @@ expect_result "存在しないファイルでは何も走らせない" \
 
 # --- 整形 ---
 unformatted="${workspace}/unformatted"
-new_crate "$unformatted"
+place_locked_crate "$unformatted"
 printf 'pub fn one()->i32{1}\n' > "${unformatted}/src/lib.rs"
 
 expect_result "整形されていないファイルは整形して 0 で終わる" \
@@ -133,11 +133,37 @@ fi
 
 # --- 構文エラー ---
 broken="${workspace}/broken"
-new_crate "$broken"
+place_locked_crate "$broken"
 printf 'pub fn one() -> i32 {\n' > "${broken}/src/lib.rs"
 
 expect_result "整形できなければ fmt の診断を返し、clippy は走らせない" \
   2 "post-edit-rust: cargo fmt" "post-edit-rust: cargo clippy" "$(payload_of "${broken}/src/lib.rs")"
+
+# --- Cargo.lock ---
+unlocked="${workspace}/unlocked"
+place_locked_crate "$unlocked"
+add_path_dep "$unlocked" "${workspace}/unlocked-dep"
+printf '%s' "$clean_source" > "${unlocked}/src/lib.rs"
+cp "${unlocked}/Cargo.lock" "${workspace}/unlocked.lock.before"
+
+expect_result "lock に無い依存があれば、lock を書き換えず --locked で止まった診断を返して 2 で終わる" \
+  2 "--locked was passed to prevent this" "警告を出しました" "$(payload_of "${unlocked}/src/lib.rs")"
+
+lock_reason=""
+cmp -s "${workspace}/unlocked.lock.before" "${unlocked}/Cargo.lock" || lock_reason="Cargo.lock が書き換わった"
+report "lock に無い依存があっても、Cargo.lock を書き換えない" "$lock_reason"
+
+lockless="${workspace}/lockless"
+place_locked_crate "$lockless"
+rm "${lockless}/Cargo.lock"
+printf '%s' "$clean_source" > "${lockless}/src/lib.rs"
+
+expect_result "Cargo.lock の無いクレートでは、--locked で止まった診断を返して 2 で終わる" \
+  2 "--locked was passed to prevent this" "" "$(payload_of "${lockless}/src/lib.rs")"
+
+lock_reason=""
+[ ! -e "${lockless}/Cargo.lock" ] || lock_reason="Cargo.lock が作られた"
+report "Cargo.lock の無いクレートで、Cargo.lock を作らない" "$lock_reason"
 
 if [ "$failures" -ne 0 ]; then
   echo "${failures} 件のテストが落ちました"

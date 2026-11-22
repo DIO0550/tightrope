@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
 #
 # フックの判定表(`*-cases.sh`)が共有する、ケースの前提の置き方。落ちる検出器・起動できない python3・
-# 失敗する awk・本体が同じテストヘルパーを渡されたパスへ置くものと、サブエージェントの中の呼び出しの入力を組むもの。
+# 失敗する awk・本体が同じテストヘルパーを渡されたパスへ置くものと、サブエージェントの中の呼び出しの入力を組むもの、
+# 使い捨ての git リポジトリを外の git の環境から切り離して入るもの、偽の sparse index に版を置くもの、
+# 公開からの期間の設定ファイルを置いて検出器へ渡すもの、cargo を走らせる使い捨てのクレートを置くもの。
 #
-# 使う側: lib/pre-push-detector-cases.sh / lib/edit-detector-cases.sh / lib/import-rule-cases.sh /
-# lib/verification-agent-cases.sh / lib/parent-session-edit-cases.sh /
-# harness/githooks/lib/test-placement-cases.sh / harness/githooks/lib/test-file-length-cases.sh
+# 使う側: lib/verification-agent-cases.sh / lib/parent-session-edit-cases.sh /
+# harness/githooks/lib/test-placement-cases.sh / harness/githooks/lib/test-file-length-cases.sh /
+# .github/scripts/red-commits-cases.sh / .github/scripts/lock-publish-age-cases.sh /
+# harness/deps/tool-cooldown-cases.sh / harness/githooks/lib/rust-checks-cases.sh / post-edit-rust-test.sh
 #
 # 終了コードと出力の組を実物の検出器から決まった形で作れないので、判定表は検出器をスタブで作る
 # (ここに置くのは判定表どうしが共有する落ちる側。報告の行を出すスタブは報告の綴りが違うので各判定表が持つ)。
@@ -70,4 +73,111 @@ place_duplicate_helpers() {
     printf 'function openedAt(path: string) {\n  return OpenedDocument.create({ path, document: sampleDocument() });\n}\n' \
       >"$folder/setup.ts"
   done
+}
+
+# 外から受け継いだ git の環境を消し、使い捨てのリポジトリのコミットを決まった設定と名前で作らせる。
+#
+# Why: linked worktree から push すると pre-push に GIT_DIR が渡り、残すと使い捨てのリポジトリの代わりに
+# 外側を読む。
+isolate_git_env() {
+  unset $(git rev-parse --local-env-vars)
+  unset $(compgen -e | grep -E '^GIT_TRACE')
+  export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+  export GIT_AUTHOR_NAME=cases GIT_AUTHOR_EMAIL=cases@example.invalid
+  export GIT_COMMITTER_NAME=cases GIT_COMMITTER_EMAIL=cases@example.invalid
+}
+
+# ディレクトリへ cd し、git がそのリポジトリを指していることを確かめる。指していなければ表ごと止める。
+#
+# Why: `--show-toplevel` だけでは足りない。GIT_DIR が漏れていても `$dir` を返し、`--absolute-git-dir`
+# だけが外側を指す。`--show-toplevel` の比較は、GIT_WORK_TREE だけが漏れたときの分として残す。
+#
+# $1 使い捨てのリポジトリのディレクトリ
+enter_repo() {
+  local dir="$1" real git_dir top is_own_repo=no
+  cd "$dir" || exit 1
+  real="$(pwd -P)"
+  git_dir="$(git rev-parse --absolute-git-dir)"
+  top="$(git rev-parse --show-toplevel)"
+  [ "$git_dir" = "$real/.git" ] && [ "$top" = "$real" ] && is_own_repo=yes
+  [ "$is_own_repo" = yes ] && return 0
+  printf 'NG   %s ではなく別のリポジトリを指している(git dir: %s / toplevel: %s)\n' "$dir" "$git_dir" "$top"
+  exit 1
+}
+
+# 偽の sparse index の、そのパスに版を 1 行足す。
+#
+# $1 index の根のディレクトリ
+# $2 index の根からのパス
+# $3 版の一覧の 1 行(JSON)
+put_index_line() {
+  mkdir -p "$(dirname "$1/$2")"
+  printf '%s\n' "$3" >>"$1/$2"
+}
+
+# 設定ファイルを置き、そのパスを出す。
+#
+# $1 置き場のディレクトリ
+# $2 ファイル名
+# $3 中身
+config_of() {
+  printf '%s' "$3" >"$1/$2"
+  echo "$1/$2"
+}
+
+# `[registry]` の `global-min-publish-age` を `"<日数> days"` にした設定ファイルを置き、そのパスを出す。
+#
+# $1 置き場のディレクトリ
+# $2 日数
+publish_age_config_of() {
+  config_of "$1" "$2-days.toml" "[registry]"$'\n'"global-min-publish-age = \"$2 days\""$'\n'
+}
+
+# 設定ファイルを渡す環境変数を付けて、コマンドを走らせる。
+#
+# $1 設定ファイルを渡す環境変数の名前
+# $2 設定ファイル(`-` なら環境変数を付けず、検出器に既定の設定を読ませる)
+# $3 以降 走らせるコマンド
+run_with_config() {
+  local variable="$1" config="$2"
+  shift 2
+  if [ "$config" = - ]; then
+    "$@"
+    return
+  fi
+  env "$variable=$config" "$@"
+}
+
+# cargo を走らせる使い捨てのクレートの置き場を作り、そのパスを出す。消すのは呼び出し側。
+#
+# Why(/tmp に作らない): cargo と rustup は走らせた場所より上の `.cargo/config.toml` / `rust-toolchain.toml` を読むので、
+# 他人も書ける場所の下で走らせると、そこに置かれた設定で任意の実行ファイルが起動しうる。このリポジトリの `target/`
+# (.gitignore にある)の下に作り、上の階層をこのリポジトリとその親(リポジトリを置いた側の場所)にする。
+make_crate_workdir() {
+  local target
+  target="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd -P)/target"
+  mkdir -p "$target" && mktemp -d "$target/cases.XXXXXX"
+}
+
+# 依存を持たないクレートを、空の src/lib.rs と Cargo.lock を添えて置く。`[workspace]` を置くのは、置き場より上の
+# 階層の Cargo.toml(このリポジトリのものを含む)を cargo がワークスペースの根と取り違えないため。lock はネットワークを
+# 使わずに作る(依存が無いので解決に index は要らない)。
+#
+# $1 クレートのディレクトリ
+# $2 パッケージ名(省くと probe)
+place_locked_crate() {
+  mkdir -p "$1/src" || return 1
+  printf '[package]\nname = "%s"\nversion = "0.1.0"\nedition = "2024"\n\n[workspace]\n' "${2:-probe}" >"$1/Cargo.toml"
+  : >"$1/src/lib.rs"
+  (cd "$1" && cargo generate-lockfile --offline --quiet)
+}
+
+# 依存先のクレート `dep` を置き、クレートの Cargo.toml にそこへの path 依存を足す。Cargo.lock には触らないので、
+# 先に lock があればその lock に無い依存になる。
+#
+# $1 依存を足すクレートのディレクトリ
+# $2 依存先のクレートを置くディレクトリ
+add_path_dep() {
+  place_locked_crate "$2" dep || return 1
+  printf '\n[dependencies]\ndep = { path = "%s" }\n' "$2" >>"$1/Cargo.toml"
 }
