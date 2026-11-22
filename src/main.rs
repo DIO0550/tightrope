@@ -1,1 +1,5 @@
-fn main() {}
+use clap::Parser;
+
+fn main() {
+    tightrope::cli::Cli::parse();
+}

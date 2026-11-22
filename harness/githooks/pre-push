@@ -17,10 +17,11 @@ cd "$(git rev-parse --show-toplevel)" || exit 1
 # push を止めても検査の質は上がらない。無条件のゲートは CI（層 1）にある。
 # 飛ばした検査は最後の行で数える。
 command -v cargo >/dev/null 2>&1 || skip_following_checks "cargo が無い"
-run_check "fmt" cargo fmt --check
-run_check "clippy" cargo clippy --all-targets -- -D warnings
-run_check "doc" env RUSTDOCFLAGS="-D rustdoc::private_intra_doc_links" cargo doc --no-deps
-run_check "test" cargo test
+run_check "fmt" bash harness/githooks/lib/rust-checks.sh fmt
+run_check "clippy" bash harness/githooks/lib/rust-checks.sh clippy
+run_check "doc" bash harness/githooks/lib/rust-checks.sh doc
+run_check "test" bash harness/githooks/lib/rust-checks.sh test
+run_check "cargo の検査の判定表" bash harness/githooks/lib/rust-checks-cases.sh
 resume_checks
 
 # 行数の予算(AGENTS.md「常時ロードは増やさない」)。実測と予算がずれていれば落ちる。
@@ -62,9 +63,10 @@ run_check "同じ Issue を閉じる他の PR の検査の判定表" bash .githu
 run_check "sticky コメントの投稿・差し替えの判定表" bash .github/scripts/upsert-sticky-comment-cases.sh
 resume_checks
 
-# 道具の cooldown の判定表は偽の index を curl で読み、版の一覧を jq で読むので、curl と jq の両方が要る。
+# 道具の cooldown と lock の公開からの期間の判定表は偽の index を curl で読み、版の一覧を jq で読むので、curl と jq の両方が要る。
 { command -v curl >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; } || skip_following_checks "curl か jq が無い"
 run_check "道具の cooldown の判定表" bash harness/deps/tool-cooldown-cases.sh
+run_check "lock の公開からの期間の判定表" bash .github/scripts/lock-publish-age-cases.sh
 resume_checks
 
 # 編集後の fmt / clippy フックのテストは使い捨てのクレートを作るので、cargo と jq の両方が要る。

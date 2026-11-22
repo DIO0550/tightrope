@@ -7,15 +7,15 @@
 - 対象: TypeScript / Rust / Java / Swift
 - 出力: `coupling.json` を元に terminal / markdown / html
 
-構想と全体構成は [`docs/tightrope-plan.md`](docs/tightrope-plan.md)。**まだ実装は無く、開発環境だけがある。**
+構想と全体構成は [`docs/tightrope-plan.md`](docs/tightrope-plan.md)。**まだ解析は実装されていない。**
 
 ## 開発
 
 ```bash
-cargo build
+cargo build --locked
 cargo fmt
-cargo clippy --all-targets -- -D warnings
-cargo test
+cargo clippy --locked --all-targets -- -D warnings
+cargo test --locked
 PRE_PUSH_REQUIRE_ALL=1 bash harness/githooks/pre-push   # push 前の検査をすべて（CI の harness ジョブと同じ）
 ```
 

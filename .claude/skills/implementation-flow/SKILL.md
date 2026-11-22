@@ -279,7 +279,7 @@ Issue: #<番号>
 第 2 工程と、フェーズ 6・7 の直しが返ってくるたびに、親は返ってきた検査の出力で、計画に記録した第 1 工程の
 テスト名(判定表・テストのスクリプトならケース名)ごとに、そのテストが走って `ok` の行になっていることを照らす。
 出力に無いもの・`ignored` のもの・`running 0 tests` で 0 件のものは通ったと数えず、計画へ戻す。ただし LSP を
-要する `#[ignore]` のテストは `cargo test -- --ignored <名前>` の出力で照らし、サーバが無くて走らせられないなら
+要する `#[ignore]` のテストは `cargo test --locked -- --ignored <名前>` の出力で照らし、サーバが無くて走らせられないなら
 計画へ戻さず、照らせなかったことを PR 本文の `- Green:` の行に書く(`rules/testing.md`「LSP を要するテストは、
 飛ばしたことが分かる形にする」)。検査の終了コード
 だけでは足りない。親モジュールの宣言の上に `#[cfg(feature = "x")]` を足すと、消した行も無く第 1 工程のテストの
@@ -339,7 +339,7 @@ Issue: #<番号>
 | `test-reviewer` | テストが守っているか(差分の行の変異(cargo-mutants)の生き残りと、手で壊す実測) | 実行されるコード(下)。2 段目 |
 
 「実行されるコード」は `src/` `tests/` `.claude/hooks/` `.github/scripts/` `harness/githooks/` と
-`harness/deps/*.sh` `harness/records/*.sh`。設定(`Cargo.toml` `.cargo/` `.github/workflows/`)は含めない。
+`harness/deps/` 配下の `.sh`(`lib/` を含む)と `harness/records/*.sh`。設定(`Cargo.toml` `.cargo/` `.github/workflows/`)は含めない。
 壊したときに落ちるのがテストや判定表ではなく、ビルドや CI そのものなので。
 
 パスと語は次で出す。コミット前の新しいファイルも含める。数が 0 なら、その語の条件には当たらない。
@@ -395,7 +395,7 @@ PRE_PUSH_REQUIRE_ALL=1 bash harness/githooks/pre-push   # git hooks と同じ検
   exit 0 になる。飛ばして落ちたら道具を揃えて走らせ直す
 - **検査をここへ一覧として写さない。** 足すのは `pre-push` の側だけ(`分類: harness`)
 - **LSP サーバを要するテスト(`#[ignore]` を付けたもの)は `pre-push` に入っていない。** LSP を通る
-  経路を変えたら `cargo test -- --ignored` も走らせ、サーバが無くて走らせられなければ**飛ばしたと
+  経路を変えたら `cargo test --locked -- --ignored` も走らせ、サーバが無くて走らせられなければ**飛ばしたと
   PR 本文に書く**(`rules/testing.md`「LSP を要するテストは、飛ばしたことが分かる形にする」)
 - **カナリアが通っても、それだけでは不発と決まらない。** `.claude/settings.json` はセッションの
   起動時に読まれるので、**起動した時点の** `.claude/settings.json` の `PreToolUse` に

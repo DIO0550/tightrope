@@ -16,6 +16,7 @@ work="$(mktemp -d)" || exit 1
 trap 'rm -rf "$work"' EXIT
 
 source "$here/../../.claude/hooks/lib/cases-report.sh"
+source "$here/../../.claude/hooks/lib/cases-fixtures.sh"
 
 heading='^tool-cooldown: .* 日経っていない$'
 index="$work/index"
@@ -28,24 +29,6 @@ days_ago() {
   jq -rn --argjson days "$1" 'now - $days * 86400 | floor | todate'
 }
 
-# 偽の index の、そのパスに版を 1 行置く。
-#
-# $1 index の根からのパス
-# $2 版の一覧の 1 行（JSON）
-put_index_line() {
-  mkdir -p "$(dirname "$index/$1")"
-  printf '%s\n' "$2" >>"$index/$1"
-}
-
-# 設定ファイルを置き、そのパスを出す。
-#
-# $1 ファイル名
-# $2 中身
-config_of() {
-  printf '%s' "$2" >"$work/$1"
-  echo "$work/$1"
-}
-
 # 偽の index と渡した設定で検出器を走らせ、判定を 1 語で出す。
 #
 # $1 設定ファイル（`-` なら既定の、このリポジトリの .cargo/config.toml）
@@ -53,33 +36,30 @@ config_of() {
 verdict_of() {
   local config="$1" output status
   shift
-  if [ "$config" = "-" ]; then
-    output="$(TOOL_COOLDOWN_INDEX_URL="file://$index" bash "$detector" "$@" 2>/dev/null)"
-  else
-    output="$(TOOL_COOLDOWN_INDEX_URL="file://$index" TOOL_COOLDOWN_CONFIG="$config" bash "$detector" "$@" 2>/dev/null)"
-  fi
+  output="$(run_with_config TOOL_COOLDOWN_CONFIG "$config" \
+    env TOOL_COOLDOWN_INDEX_URL="file://$index" bash "$detector" "$@" 2>/dev/null)"
   status=$?
   decide "$output" "$status" "$heading"
 }
 
-fourteen_days="$(config_of fourteen.toml $'[registry]\nglobal-min-publish-age = "14 days"\n')"
-three_days="$(config_of three.toml $'[registry]\nglobal-min-publish-age = "3 days"\n')"
-one_day="$(config_of one.toml $'[registry]\nglobal-min-publish-age = "1 day"\n')"
-no_age="$(config_of no-age.toml $'[registry]\n')"
-weeks="$(config_of weeks.toml $'[registry]\nglobal-min-publish-age = "2 weeks"\n')"
-other_table_only="$(config_of other-table-only.toml $'[registry]\n\n[other]\nglobal-min-publish-age = "0 days"\n')"
-other_table_first="$(config_of other-table-first.toml $'[other]\nglobal-min-publish-age = "0 days"\n\n[registry]\nglobal-min-publish-age = "3 days"\n')"
-trailing_comment="$(config_of trailing-comment.toml $'[registry]\nglobal-min-publish-age = "3 days" # 検知ラグを覆う\n')"
-no_spaces="$(config_of no-spaces.toml $'[registry]\nglobal-min-publish-age="3 days"\n')"
-leading_zero="$(config_of leading-zero.toml $'[registry]\nglobal-min-publish-age = "010 days"\n')"
+fourteen_days="$(publish_age_config_of "$work" 14)"
+three_days="$(publish_age_config_of "$work" 3)"
+one_day="$(config_of "$work" one.toml $'[registry]\nglobal-min-publish-age = "1 day"\n')"
+no_age="$(config_of "$work" no-age.toml $'[registry]\n')"
+weeks="$(config_of "$work" weeks.toml $'[registry]\nglobal-min-publish-age = "2 weeks"\n')"
+other_table_only="$(config_of "$work" other-table-only.toml $'[registry]\n\n[other]\nglobal-min-publish-age = "0 days"\n')"
+other_table_first="$(config_of "$work" other-table-first.toml $'[other]\nglobal-min-publish-age = "0 days"\n\n[registry]\nglobal-min-publish-age = "3 days"\n')"
+trailing_comment="$(config_of "$work" trailing-comment.toml $'[registry]\nglobal-min-publish-age = "3 days" # 検知ラグを覆う\n')"
+no_spaces="$(config_of "$work" no-spaces.toml $'[registry]\nglobal-min-publish-age="3 days"\n')"
+leading_zero="$(config_of "$work" leading-zero.toml $'[registry]\nglobal-min-publish-age = "010 days"\n')"
 
-put_index_line ca/rg/cargo-mutants "{\"name\":\"cargo-mutants\",\"vers\":\"1.0.0\",\"pubtime\":\"$long_ago\"}"
-put_index_line ca/rg/cargo-mutants "{\"name\":\"cargo-mutants\",\"vers\":\"1.1.0\",\"pubtime\":\"$(days_ago 0)\"}"
-put_index_line ca/rg/cargo-mutants "{\"name\":\"cargo-mutants\",\"vers\":\"1.2.0\",\"pubtime\":\"$(days_ago 2)\"}"
-put_index_line ca/rg/cargo-mutants "{\"name\":\"cargo-mutants\",\"vers\":\"1.3.0\",\"pubtime\":\"$(days_ago 4)\"}"
-put_index_line ca/rg/cargo-mutants '{"name":"cargo-mutants","vers":"1.4.0"}'
-put_index_line ca/rg/cargo-mutants '{"name":"cargo-mutants","vers":"1.5.0","pubtime":"昨日"}'
-put_index_line ca/rg/cargo-mutants "{\"name\":\"cargo-mutants\",\"vers\":\"1.6.0\",\"pubtime\":\"$(days_ago 9)\"}"
+put_index_line "$index" ca/rg/cargo-mutants "{\"name\":\"cargo-mutants\",\"vers\":\"1.0.0\",\"pubtime\":\"$long_ago\"}"
+put_index_line "$index" ca/rg/cargo-mutants "{\"name\":\"cargo-mutants\",\"vers\":\"1.1.0\",\"pubtime\":\"$(days_ago 0)\"}"
+put_index_line "$index" ca/rg/cargo-mutants "{\"name\":\"cargo-mutants\",\"vers\":\"1.2.0\",\"pubtime\":\"$(days_ago 2)\"}"
+put_index_line "$index" ca/rg/cargo-mutants "{\"name\":\"cargo-mutants\",\"vers\":\"1.3.0\",\"pubtime\":\"$(days_ago 4)\"}"
+put_index_line "$index" ca/rg/cargo-mutants '{"name":"cargo-mutants","vers":"1.4.0"}'
+put_index_line "$index" ca/rg/cargo-mutants '{"name":"cargo-mutants","vers":"1.5.0","pubtime":"昨日"}'
+put_index_line "$index" ca/rg/cargo-mutants "{\"name\":\"cargo-mutants\",\"vers\":\"1.6.0\",\"pubtime\":\"$(days_ago 9)\"}"
 
 report pass "$(verdict_of "$fourteen_days" cargo-mutants 1.0.0)" \
   "公開から期間が経った版は通す"
@@ -126,7 +106,7 @@ report broken "$(verdict_of "$fourteen_days" cargo-mutants)" \
 # 名前の長さごとの、sparse index のパスの組み方。パスを読み違えると index が読めず broken になる。
 cases_before=$cases_reported
 while IFS='|' read -r crate path label; do
-  put_index_line "$path" "{\"name\":\"$crate\",\"vers\":\"1.0.0\",\"pubtime\":\"$long_ago\"}"
+  put_index_line "$index" "$path" "{\"name\":\"$crate\",\"vers\":\"1.0.0\",\"pubtime\":\"$long_ago\"}"
   report pass "$(verdict_of "$fourteen_days" "$crate" 1.0.0)" "$label"
 done <<'PATHS'
 a|1/a|名前が 1 文字なら 1/<名前> を読む
