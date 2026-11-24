@@ -50,6 +50,9 @@ run_check "テストの置き場所の判定表" bash harness/githooks/lib/test-
 run_check "コメントの形" bash harness/githooks/lib/comment-style.sh crates
 run_check "コメントの形の判定表" bash harness/githooks/lib/comment-style-cases.sh
 
+# 行数・置き場所・コメントの検査に渡す根の判定表。
+run_check "検査に渡す根の判定表" bash harness/githooks/lib/check-roots-cases.sh
+
 # 層 3 のフックの判定表とテスト。フックそのものは CI では発火しないが、判定が壊れたことには
 # ここと CI でしか気づけない。どれも bash だけで走るので飛ばさない。
 run_check "作業ツリーを書き換えるサブエージェントの実行中フラグの判定表" bash .claude/hooks/lib/verification-agent-cases.sh

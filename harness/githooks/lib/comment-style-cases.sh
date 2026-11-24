@@ -57,6 +57,8 @@ report pass "$(verdict_of why-word-in-doc a.rs $'/// Why という語を含む�
   "doc の中で Why: の形でない語は拾わない"
 report pass "$(verdict_of fixtures fixtures/x.rs $'// 解析対象のサンプル\n' a.rs $'fn f() {}\n')" \
   "fixtures/ の下は見ない"
+report pass "$(verdict_of nested-fixtures crate/tests/fixtures/x.rs $'// 解析対象のサンプル\n' crate/tests/a.rs $'fn f() {}\n')" \
+  "根より深い階層の fixtures/ の下も見ない"
 report pass "$(verdict_of not-rust a.sh $'# 理由\n// これは Rust ではない\n')" \
   ".rs 以外のファイルは見ない"
 
