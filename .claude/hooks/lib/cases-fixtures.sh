@@ -5,10 +5,7 @@
 # 使い捨ての git リポジトリを外の git の環境から切り離して入るもの、偽の sparse index に版を置くもの、
 # 公開からの期間の設定ファイルを置いて検出器へ渡すもの、cargo を走らせる使い捨てのクレートを置くもの。
 #
-# 使う側: lib/verification-agent-cases.sh / lib/parent-session-edit-cases.sh /
-# harness/githooks/lib/test-placement-cases.sh / harness/githooks/lib/test-file-length-cases.sh /
-# .github/scripts/red-commits-cases.sh / .github/scripts/lock-publish-age-cases.sh /
-# harness/deps/tool-cooldown-cases.sh / harness/githooks/lib/rust-checks-cases.sh / post-edit-rust-test.sh
+# このファイルを使う側の一覧は `.claude/hooks/README.md`「配線」の `lib/cases-fixtures.sh` の行が持つ。
 #
 # 終了コードと出力の組を実物の検出器から決まった形で作れないので、判定表は検出器をスタブで作る
 # (ここに置くのは判定表どうしが共有する落ちる側。報告の行を出すスタブは報告の綴りが違うので各判定表が持つ)。
