@@ -22,6 +22,7 @@ run_check "clippy" bash harness/githooks/lib/rust-checks.sh clippy
 run_check "doc" bash harness/githooks/lib/rust-checks.sh doc
 run_check "test" bash harness/githooks/lib/rust-checks.sh test
 run_check "cargo の検査の判定表" bash harness/githooks/lib/rust-checks-cases.sh
+run_check "clippy の設定の判定表" bash harness/githooks/lib/clippy-config-cases.sh
 resume_checks
 
 # 行数の予算(AGENTS.md「常時ロードは増やさない」)。実測と予算がずれていれば落ちる。
