@@ -24,6 +24,9 @@ source "$here/../../../.claude/hooks/lib/cases-fixtures.sh"
 work="$(make_crate_workdir)" || exit 1
 trap 'rm -rf "$work"' EXIT
 
+# CI は CARGO_TERM_COLOR=always を渡す。色が付くと cargo の標準エラーの行が `error:` で始まらず、照合が外れる。
+export CARGO_TERM_COLOR=never
+
 workspace="$work/ws"
 outside="$work/outside"
 
