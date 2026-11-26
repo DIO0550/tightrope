@@ -11,5 +11,4 @@ license.workspace = true
 workspace = true
 
 [dependencies]
-clap.workspace = true
 presentation = { path = "../presentation" }
