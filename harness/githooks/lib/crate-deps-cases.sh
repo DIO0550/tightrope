@@ -7,6 +7,8 @@
 # だけを置く(E1 は置かない)。1 ケースの判定の綴りと、それをどう照らすかは `decision_of`。
 # 走らせ方の例外は 2 つ。D16 は根をカレントにして引数なしで呼ぶ。D17 は偽の cargo(`future_kind_cargo_path_prefix`)を
 # PATH の先頭に置いて呼ぶ。
+# R1・D18 も基準の workspace B に手を入れて組む。E4〜E6 は E1〜E3 と同じ根を置き、検査できなかった理由が
+# 標準エラーに出るかまで照らす(`run_unavailable_case`)。
 #
 # 使い方: bash harness/githooks/lib/crate-deps-cases.sh
 # 食い違ったケースがあれば exit 1(`ok` だけなら期待どおり)。
@@ -171,6 +173,39 @@ run_case() {
   return 0
 }
 
+# 標準エラーに当たる行が無かった綴りを、1 行 1 件で出す。すべて当たれば何も出さない。
+#
+# $1 標準エラーを書いたファイル
+# $2 当たるはずの行の拡張正規表現(1 行 1 件)
+missing_reasons_of() {
+  local stderr_file="$1" reason
+  while IFS= read -r reason; do
+    [ -n "$reason" ] || continue
+    grep -qE -- "$reason" "$stderr_file" || printf '%s\n' "$reason"
+  done <<<"$2"
+}
+
+# 検査を走らせて、検査できなかったこと(判定 unavailable)と、その理由が標準エラーに出たことを照らす。
+# 当たる行が無い綴りがあれば、判定の後ろに `(理由が無い)` を付けて食い違いにし、その綴りと標準エラーを出す。
+#
+# $1 標準エラーに当たるはずの行の拡張正規表現(1 行 1 件)
+# $2 ケース名
+# $3 以降 検査を走らせるコマンド
+run_unavailable_case() {
+  local expected_reasons="$1" label="$2" status=0 decision missing_reasons
+  shift 2
+  "$@" >"$work/stdout" 2>"$work/stderr" || status=$?
+  decision="$(decision_of "$work/stdout" "$work/stderr" "$status" '')"
+  missing_reasons="$(missing_reasons_of "$work/stderr" "$expected_reasons")"
+  [ -z "$missing_reasons" ] || decision="$decision(理由が無い)"
+  report unavailable "$decision" "$label"
+  [ "$decision" = unavailable ] && return 0
+  printf '       終了コード: %s\n' "$status"
+  printf '%s\n' "$missing_reasons" | grep -v '^$' | sed 's/^/       無い理由: /'
+  sed 's/^/       標準エラー: /' "$work/stderr"
+  return 0
+}
+
 # 根を引数に渡して検査を走らせる。
 #
 # $1 workspace の根
@@ -305,6 +340,24 @@ append_to_member presentation '' '[target."cfg(x = \"a\tclap\nb\")".dependencies
 run_case deny "presentation: [target.'cfg(x = \"a\\tclap\\nb\")'.dependencies] の evil(外部 crate)" \
   'S1 cfg の文字列にタブ・改行があっても、その依存を違反として出す' run_with_root "$workspace"
 
+place_workspace_b || exit 1
+append_to_member domain 'application = { path = "../application" }' || exit 1
+append_to_member application 'infrastructure = { path = "../infrastructure" }' \
+  'presentation = { path = "../presentation" }' || exit 1
+append_to_member infrastructure 'presentation = { path = "../presentation" }' || exit 1
+append_to_member presentation 'infrastructure = { path = "../infrastructure" }' || exit 1
+run_case deny 'domain: [dependencies] の application(workspace の crate)
+application: [dependencies] の infrastructure(workspace の crate)
+application: [dependencies] の presentation(workspace の crate)
+infrastructure: [dependencies] の presentation(workspace の crate)
+presentation: [dependencies] の infrastructure(workspace の crate)' \
+  'R1 層を逆に向く・横に向く workspace の依存をすべて出す' run_with_root "$workspace"
+
+place_workspace_b || exit 1
+place_member "$workspace/crates/extra" extra 'serde = "1"' || exit 1
+run_case deny 'extra: 許可表に行が無い crate' \
+  'D18 表に行が無いメンバーの依存は照らさず、行が無いことの 1 行だけ出す' run_with_root "$workspace"
+
 rm -rf "$workspace" "$outside" || exit 1
 mkdir -p "$workspace" || exit 1
 run_case unavailable '' 'E1 根に Cargo.toml が無ければ検査できない' run_with_root "$workspace"
@@ -314,5 +367,19 @@ run_case unavailable '' 'E2 根の Cargo.toml が TOML として壊れていれ�
 
 printf '[workspace]\nmembers = []\nresolver = "3"\n' >"$workspace/Cargo.toml"
 run_case unavailable '' 'E3 メンバー 0 件なら検査できない' run_with_root "$workspace"
+
+rm -f "$workspace/Cargo.toml" || exit 1
+run_unavailable_case 'cargo metadata が落ちました
+^error:' 'E4 根に Cargo.toml が無ければ、cargo metadata が落ちたことと cargo の error: を標準エラーに出す' \
+  run_with_root "$workspace"
+
+printf '[workspace\n' >"$workspace/Cargo.toml"
+run_unavailable_case 'cargo metadata が落ちました
+^error:' 'E5 根の Cargo.toml が壊れていれば、cargo metadata が落ちたことと cargo の error: を標準エラーに出す' \
+  run_with_root "$workspace"
+
+printf '[workspace]\nmembers = []\nresolver = "3"\n' >"$workspace/Cargo.toml"
+run_unavailable_case 'メンバーが 1 つもありません' \
+  'E6 メンバー 0 件なら、メンバーが 1 つも無いことを標準エラーに出す' run_with_root "$workspace"
 
 exit "$cases_failed"
