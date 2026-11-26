@@ -83,6 +83,7 @@ resume_checks
 # 編集後の fmt / clippy フックのテストは使い捨てのクレートを作るので、cargo と jq の両方が要る。
 { command -v cargo >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; } || skip_following_checks "cargo か jq が無い"
 run_check "編集後の fmt / clippy フックのテスト" bash .claude/hooks/post-edit-rust-test.sh
+run_check "crate の依存の許可表の判定表" bash harness/githooks/lib/crate-deps-cases.sh
 resume_checks
 
 # この文の終了コードがフックの終了コードになる(後ろに文を足すと、失敗しても push が通る)。
