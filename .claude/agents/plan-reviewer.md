@@ -43,7 +43,7 @@ model: inherit
   計画が持っているか**（`分類: plan`）。作業が種類に合っていないなら、それも指摘する
 - **Issue / PR を分割する計画なら、分けた側が単体でマージできて動作を確かめられるか**（`分類: plan`）
 - **置き場所の根拠が `rules/architecture.md`「段の構成」と `docs/report/technical-spec.md`「段の構成」を指しているか**（`分類: plan`）。
-  `harness/githooks/lib/folder-deps.sh` の `allowed_dependencies` に行の無いフォルダへ置くなら、その行を足す計画になっているか
+  `harness/githooks/lib/folder-deps.sh` は場所を `src` 直下の名前で決める（`<crate>/src/<名前>.rs` と、深さを問わず `<crate>/src/<名前>/` の下は `<crate>/src/<名前>`）。置き先の場所の行が `allowed_dependencies` に無いなら（新しい crate・`src` 直下の新しい役割フォルダなど）、その行を足す計画になっているか
 - **ロジックの帰属先が正しいか。** 判定・計算・変換が `usecase` や呼び出し側のヘルパー関数に
   置かれようとしていないか。第 1 引数（`self`）に取る型の `impl` へ置けないか
   （`rules/architecture.md`「ロジックの帰属先」。`分類: ownership`）

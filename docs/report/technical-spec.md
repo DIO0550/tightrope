@@ -99,7 +99,7 @@ tightrope（bin）→ すべて（組み立てるだけ）
 | `infrastructure/translation/git_log` | `git log` の出力の文字列から期待する回数 |
 | `infrastructure/translation/lsp_definition` | 応答の JSON から期待する型 |
 | `infrastructure/driver` | `crates/infrastructure/tests/` のフィクスチャに対して実物の I/O で見る |
-| `application/usecase` | port のフェイクを差して、手順と「取れなかった」の扱いを見る |
+| `application/usecase` | 戻り値・出力 DTO に出る「取れなかった」の扱いを見る。フェイクを差すのは外部の境界（LSP・git・ファイル）の port だけ |
 | `presentation/controller` | 引数の並びと期待する解釈 |
 | 段をつないだ結果 | `crates/tightrope/tests/` にフィクスチャのディレクトリを置いて `coupling.json` を見る |
 
