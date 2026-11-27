@@ -6,7 +6,7 @@
 # Cargo.toml)だけを写した workspace を使い捨ての置き場に組み、crate のディレクトリをカレントにして
 # `rust-checks.sh clippy` を crate ごとに 2 回走らせる。各 crate の src/lib.rs は空で、実物のソースは写さない。
 #   probe の run  下の probe の表の項目を 1 つずつ使う src/probe_<nn>.rs と、src/inner/mod.rs と、テストの外で
-#                 unwrap() / expect() を使う src/unwrap_outside_tests.rs を置く。
+#                 unwrap() / expect() を使う src/panics_outside_tests.rs を置く。
 #                 1 回の run に禁止を同居させるので終了コードでは照らさず、clippy の出力の見出し(`-->` が指す
 #                 ファイルと、その直前の error / warning の行の組)で照らす(T1・T2・T4・T5・T7・T11・T12)
 #   例外の run    テストの中の unwrap() / expect() と、統合テストが `mod common;` で使う tests/common/mod.rs を
@@ -155,7 +155,7 @@ probe_module_of() {
 }
 
 # probe の run のソースを置く。probe の表の項目を 1 つずつ src/probe_<nn>.rs に置き、src/inner/mod.rs と
-# src/unwrap_outside_tests.rs(`#[cfg(test)]` の外の関数で unwrap() / expect() を使う)と合わせて src/lib.rs から読む。
+# src/panics_outside_tests.rs(`#[cfg(test)]` の外の関数で unwrap() / expect() を使う)と合わせて src/lib.rs から読む。
 #
 # $1 crate のディレクトリ
 place_probe_sources() {
@@ -169,7 +169,7 @@ place_probe_sources() {
   mkdir -p "$crate_dir/src/inner" || return 1
   printf 'pub fn inner() {}\n' >"$crate_dir/src/inner/mod.rs"
   printf 'pub mod inner;\n' >>"$crate_dir/src/lib.rs"
-  cat >"$crate_dir/src/unwrap_outside_tests.rs" <<'EOF'
+  cat >"$crate_dir/src/panics_outside_tests.rs" <<'EOF'
 pub fn unwrapped() -> i32 {
     "1".parse::<i32>().unwrap()
 }
@@ -178,7 +178,7 @@ pub fn expected() -> i32 {
     "1".parse::<i32>().expect("1 は数")
 }
 EOF
-  printf 'pub mod unwrap_outside_tests;\n' >>"$crate_dir/src/lib.rs"
+  printf 'pub mod panics_outside_tests;\n' >>"$crate_dir/src/lib.rs"
 }
 
 # 例外の run のソースを置く。src/lib.rs のテストの中で unwrap() / expect() を使い、統合テスト tests/probe.rs が
@@ -457,9 +457,9 @@ for index in "${!crate_names[@]}"; do
   headings="$work/probe.$crate.headings"
   report deny "$(heading_decision_of "$headings" "crates/$crate/src/inner/mod.rs" 'error: `mod.rs` files are not allowed')" \
     "T2 $crate で src/inner/mod.rs を置くと clippy が落ちる"
-  report deny "$(heading_decision_of "$headings" "crates/$crate/src/unwrap_outside_tests.rs" 'error: used `unwrap()`')" \
+  report deny "$(heading_decision_of "$headings" "crates/$crate/src/panics_outside_tests.rs" 'error: used `unwrap()`')" \
     "T11 $crate の本番コード(#[cfg(test)] の外)で unwrap() を使うと clippy が落ちる"
-  report deny "$(heading_decision_of "$headings" "crates/$crate/src/unwrap_outside_tests.rs" 'error: used `expect()`')" \
+  report deny "$(heading_decision_of "$headings" "crates/$crate/src/panics_outside_tests.rs" 'error: used `expect()`')" \
     "T12 $crate の本番コード(#[cfg(test)] の外)で expect() を使うと clippy が落ちる"
   report なし "$(count_label_of "$(config_heading_count_of "$headings")")" \
     "T4 $crate の probe の run で、clippy.toml を指す警告が出ない"

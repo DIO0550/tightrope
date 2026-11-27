@@ -7,9 +7,9 @@
 # 違反があれば、見出しの下に違反の行をすべて出して exit 1。違反の行は次の 2 つの形。
 #   <crate>: [<節>] の <依存>(workspace の crate)   または   (外部 crate)
 #   <crate>: 許可表に行が無い crate
-# 検査できなかったとき(jq が無い / cargo metadata が落ちた / jq が cargo metadata の出力を読めない /
-# workspace のメンバーが 0 件 / jq の出力に知らない行の種類か分類がある / 隣の workspace-metadata.sh を
-# 読み込めない)は、理由を標準エラーへ出して exit 2。
+# 検査できなかったとき(cargo metadata からメンバーを読めない(理由は隣の cargo-metadata.sh の冒頭と関数の doc) /
+# jq の出力に知らない行の種類か分類がある / 隣の cargo-metadata.sh を読み込めない)は、理由を標準エラーへ出して
+# exit 2。
 #
 # 読むのは `<workspace の根>/Cargo.toml` を渡した `cargo metadata --no-deps` の出力。
 # - メンバーごとに、依存の種類(dependencies / dev-dependencies / build-dependencies、target 付きのもの)を
@@ -23,15 +23,13 @@
 # - crate・節・依存の名前にタブ・改行・バックスラッシュがあれば、jq の `@tsv` がエスケープした綴り
 #   (`\t` / `\n` / `\\`)のまま出す(例: cfg にタブがある節は `target.'cfg(x = "a\tb")'.dependencies`)
 #
-# cargo の標準エラーは、cargo が落ちたときだけ出す。
-#
 # macOS の /bin/bash(3.2)でも走るよう、連想配列など bash 4 以降の機能は使わない。
 
 set -uo pipefail
 
 here="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-source "$here/workspace-metadata.sh" || {
-  echo 'crate-deps: 隣の workspace-metadata.sh を読み込めません' >&2
+source "$here/cargo-metadata.sh" || {
+  echo 'crate-deps: 隣の cargo-metadata.sh を読み込めません' >&2
   exit 2
 }
 
@@ -95,12 +93,12 @@ exit_unreadable_line() {
   exit 2
 }
 
-metadata="$(workspace_metadata_of "$root" crate-deps)" || exit 2
+metadata="$(cargo_metadata_of "$root" crate-deps)" || exit 2
 
 # 1 行 1 件で、`@tsv` でエスケープした TAB 区切りの行を出す。メンバーは `member<TAB><crate>`、依存は
 # `dependency<TAB><crate><TAB><節><TAB><依存の名前><TAB>workspace|external`。依存の行は、その crate の
 # メンバーの行の後に並ぶ。メンバーごとに 1 行出すので、メンバーが 0 件のときだけ出力が空になる。
-metadata_lines="$(jq -r "$workspace_member_packages_def"'
+metadata_lines="$(workspace_member_lines_of "$root" crate-deps '
   workspace_member_packages as $members
   | ($members | map(.manifest_path | sub("/[^/]*$"; ""))) as $member_dirs
   | $members[]
@@ -115,17 +113,7 @@ metadata_lines="$(jq -r "$workspace_member_packages_def"'
       | .path as $path
       | (if any($member_dirs[]; . == $path) then "workspace" else "external" end) as $class
       | (["dependency", $crate, $section, .name, $class] | @tsv))
-' <<<"$metadata")"
-jq_status=$?
-if [ "$jq_status" -ne 0 ]; then
-  printf 'crate-deps: jq が %s/Cargo.toml の cargo metadata の出力を読めません(終了コード %s)\n' "$root" "$jq_status" >&2
-  exit 2
-fi
-
-if [ -z "$metadata_lines" ]; then
-  printf 'crate-deps: %s/Cargo.toml の workspace にメンバーが 1 つもありません\n' "$root" >&2
-  exit 2
-fi
+' <<<"$metadata")" || exit 2
 
 # 今読んでいるメンバーの許可表の行の添字。許可表に行が無いメンバーでは空。
 current_row=''

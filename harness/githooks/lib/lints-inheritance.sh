@@ -18,23 +18,23 @@
 # - 引用符つきの見出し(`["lints"]`)・引用符つきのキー(`"workspace" = true`)
 # - 改行が CRLF の行
 #
-# 検査できなかったとき(jq が無い / cargo の標準エラーを受ける一時ファイルを作れない / cargo metadata が落ちた /
-# jq が cargo metadata の出力を読めない / workspace のメンバーが 0 件 / メンバーの Cargo.toml を読めない /
-# メンバーの Cargo.toml に 3 重引用符(`"""` / `'''`)がある / 隣の workspace-metadata.sh を読み込めない)は、
-# 理由を標準エラーへ出して exit 2。3 重引用符の文字列は複数の行にまたがり、中の行を見出しやキーと
-# 区別して読めないので、受けているとも受けていないとも言わない。
+# 検査できなかったとき(cargo metadata からメンバーを読めない(理由は隣の cargo-metadata.sh の冒頭と関数の doc) /
+# メンバーの Cargo.toml を読めない / メンバーの Cargo.toml に 3 重引用符(`"""` / `'''`)がある /
+# 隣の cargo-metadata.sh を読み込めない)は、理由を標準エラーへ出して exit 2。
+# 3 重引用符の文字列は複数の行にまたがり、中の行を見出しやキーと区別して読めないので、受けているとも
+# 受けていないとも言わない。
+# メンバーの Cargo.toml のパスにタブ・改行・`\` があれば、jq の `@tsv` がエスケープした綴り(`\t` / `\n` / `\\`)の
+# まま読むので、Cargo.toml を読めないとして exit 2 になる。
 # 複数行のインラインの表の中の `workspace = true` は「受けている」と読んでしまうが、cargo が
 # `invalid type: boolean` で落とすので、cargo metadata が落ちたとして exit 2 になる。
-#
-# cargo の標準エラーは、cargo が落ちたときだけ出す。
 #
 # macOS の /bin/bash(3.2)でも走るよう、連想配列など bash 4 以降の機能は使わない。
 
 set -uo pipefail
 
 here="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-source "$here/workspace-metadata.sh" || {
-  echo 'lints-inheritance: 隣の workspace-metadata.sh を読み込めません' >&2
+source "$here/cargo-metadata.sh" || {
+  echo 'lints-inheritance: 隣の cargo-metadata.sh を読み込めません' >&2
   exit 2
 }
 
@@ -46,31 +46,31 @@ heading='[lints] の下に workspace = true と書いていない crate があ�
 blank=$'[ \t]*'
 # 行末のコメント。CR を含む行には当たらない。
 comment=$'(#[^\r]*)?'
-header_pattern="^${blank}\\["
-lints_header_pattern="^${blank}\\[${blank}lints${blank}\\]${blank}${comment}\$"
+section_pattern="^${blank}\\["
+lints_section_pattern="^${blank}\\[${blank}lints${blank}\\]${blank}${comment}\$"
 inheriting_line_pattern="^${blank}workspace${blank}=${blank}true${blank}${comment}\$"
-multiline_string_pattern="(\"\"\"|''')"
+triple_quoted_pattern="(\"\"\"|''')"
 
 # Cargo.toml が `[lints]` の下の `workspace = true` で受けているかを、`inherits`(受けている)/ `missing`(受けていない)/
-# `multiline`(3 重引用符があり読めない)で出す。
+# `triple_quoted`(3 重引用符があり読めない)で出す。
 #
 # $1 Cargo.toml のパス
 inheritance_of() {
-  local line table=other inherited=no
+  local line section=other inherited=no
   while IFS= read -r line || [ -n "$line" ]; do
-    if [[ "$line" =~ $multiline_string_pattern ]]; then
-      echo multiline
+    if [[ "$line" =~ $triple_quoted_pattern ]]; then
+      echo triple_quoted
       return 0
     fi
-    if [[ "$line" =~ $lints_header_pattern ]]; then
-      table=lints
+    if [[ "$line" =~ $lints_section_pattern ]]; then
+      section=lints
       continue
     fi
-    if [[ "$line" =~ $header_pattern ]]; then
-      table=other
+    if [[ "$line" =~ $section_pattern ]]; then
+      section=other
       continue
     fi
-    [ "$table" = lints ] || continue
+    [ "$section" = lints ] || continue
     [[ "$line" =~ $inheriting_line_pattern ]] && inherited=yes
   done <"$1"
 
@@ -81,22 +81,12 @@ inheritance_of() {
   echo missing
 }
 
-metadata="$(workspace_metadata_of "$root" lints-inheritance)" || exit 2
+metadata="$(cargo_metadata_of "$root" lints-inheritance)" || exit 2
 
 # 1 行 1 件で、`@tsv` でエスケープした `<package の名前><TAB><Cargo.toml のパス>` の行を出す。
-member_lines="$(jq -r "$workspace_member_packages_def"'
+member_lines="$(workspace_member_lines_of "$root" lints-inheritance '
   workspace_member_packages[] | [.name, .manifest_path] | @tsv
-' <<<"$metadata")"
-jq_status=$?
-if [ "$jq_status" -ne 0 ]; then
-  printf 'lints-inheritance: jq が %s/Cargo.toml の cargo metadata の出力を読めません(終了コード %s)\n' "$root" "$jq_status" >&2
-  exit 2
-fi
-
-if [ -z "$member_lines" ]; then
-  printf 'lints-inheritance: %s/Cargo.toml の workspace にメンバーが 1 つもありません\n' "$root" >&2
-  exit 2
-fi
+' <<<"$metadata")" || exit 2
 
 missing=()
 while IFS=$'\t' read -r name manifest; do
@@ -110,7 +100,7 @@ while IFS=$'\t' read -r name manifest; do
   # 知らない答えは「受けていない」へ倒す。
   case "$(inheritance_of "$manifest")" in
     inherits) continue ;;
-    multiline)
+    triple_quoted)
       printf 'lints-inheritance: %s の Cargo.toml(%s)に 3 重引用符の文字列があり、行で読めません\n' "$name" "$manifest" >&2
       exit 2
       ;;
