@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# pre-push が行数・置き場所・コメント・フォルダの依存の検査に渡す根の判定表。
+# pre-push が行数・置き場所・コメント・フォルダの依存・lint の水準の属性の検査に渡す根の判定表。
 #
 # 本物の `pre-push` と `harness/githooks/lib/*.sh` を使い捨てのリポジトリへ写し、集計の `check-tally.sh`
 # だけを、検査を走らせずに名前とコマンドをタブ区切りで 1 行に書き出す偽物に差し替えて流す。根を決める
@@ -58,9 +58,9 @@ while IFS= read -r name; do
   printf '[package]\nname = "%s"\n' "$name" >"$repo/crates/$name/Cargo.toml" || exit 1
 done <<<"$crate_names"
 mkdir -p "$repo/crates/a/src/m" "$repo/crates/c/tests/fixtures" || exit 1
-printf '// x\n' >"$repo/crates/a/src/m/x.rs"
-printf '// y\n' >"$repo/crates/c/tests/cli.rs"
-printf '// sample\n' >"$repo/crates/c/tests/fixtures/sample.rs"
+printf '// x\n#[allow(dead_code)]\n' >"$repo/crates/a/src/m/x.rs"
+printf '// y\n#[allow(dead_code)]\n' >"$repo/crates/c/tests/cli.rs"
+printf '// sample\n#[allow(dead_code)]\n' >"$repo/crates/c/tests/fixtures/sample.rs"
 
 enter_repo "$repo"
 written="$(bash harness/githooks/pre-push)"
@@ -102,10 +102,21 @@ per_crate_checks_of() {
   done <<<"$crate_names"
 }
 
+# 書き出した行のうち、走らせるスクリプトが $1 のものを走らせ、検査が報告した行の `<ファイル>:<行>` だけを 1 行ずつ出す。
+#
+# $1 走らせるスクリプト(リポジトリのルートからのパス)
+reported_locations_of() {
+  local fields
+  while IFS=$'\t' read -r -a fields; do
+    "${fields[@]:1}"
+  done < <(checks_of "$1") | sed -nE 's/^([^:]+:[0-9]+): .*$/\1/p'
+}
+
 length_script=harness/githooks/lib/test-file-length.sh
 placement_script=harness/githooks/lib/test-placement.sh
 comment_script=harness/githooks/lib/comment-style.sh
 folder_script=harness/githooks/lib/folder-deps.sh
+lint_level_script=harness/githooks/lib/lint-level-attributes.sh
 
 report "$(joined_sorted "$(per_crate_checks_of テストのファイルの行数 "$length_script")")" \
   "$(joined_sorted "$(checks_of "$length_script" | to_report_form)")" \
@@ -117,16 +128,19 @@ report "コメントの形|bash $comment_script crates" \
   "$(joined_sorted "$(checks_of "$comment_script" | to_report_form)")" \
   "コメントの検査は 1 回だけ走り、crates を根に受け取る"
 
-comment_findings=""
-while IFS=$'\t' read -r -a fields; do
-  comment_findings="${comment_findings}$("${fields[@]:1}")"$'\n'
-done < <(checks_of "$comment_script")
 report "crates/a/src/m/x.rs:1,crates/c/tests/cli.rs:1" \
-  "$(joined_sorted "$(printf '%s' "$comment_findings" | sed -nE 's/^([^:]+:[0-9]+): .*$/\1/p')")" \
+  "$(joined_sorted "$(reported_locations_of "$comment_script")")" \
   "コメントの検査に渡した根では crates/*/tests の // は報告され、crate の tests/fixtures/ の // は報告されない"
 
 report "フォルダの依存の許可表|bash $folder_script" \
   "$(checks_of "$folder_script" | to_report_form)" \
   "フォルダの依存の検査は根を渡さずに 1 回だけ走る"
+
+report "lint の水準の属性|bash $lint_level_script" \
+  "$(checks_of "$lint_level_script" | to_report_form)" \
+  "lint の水準の属性の検査は根を渡さずに 1 回だけ走る"
+report "crates/a/src/m/x.rs:2,crates/c/tests/cli.rs:2,crates/c/tests/fixtures/sample.rs:2" \
+  "$(joined_sorted "$(reported_locations_of "$lint_level_script")")" \
+  "pre-push の呼び方で、crates/*/src・crates/*/tests・crate の tests/fixtures/ の lint の水準の属性が報告される"
 
 exit "$cases_failed"
