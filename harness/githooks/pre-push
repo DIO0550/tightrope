@@ -50,7 +50,11 @@ run_check "テストの置き場所の判定表" bash harness/githooks/lib/test-
 run_check "コメントの形" bash harness/githooks/lib/comment-style.sh crates
 run_check "コメントの形の判定表" bash harness/githooks/lib/comment-style-cases.sh
 
-# 行数・置き場所・コメントの検査に渡す根の判定表。
+# crate の中の役割フォルダの向きと、I/O・serde の置き場所(rules/architecture.md「依存方向のルール（必須要件）」)と、その判定表。
+run_check "フォルダの依存の許可表" bash harness/githooks/lib/folder-deps.sh
+run_check "フォルダの依存の許可表の判定表" bash harness/githooks/lib/folder-deps-cases.sh
+
+# 行数・置き場所・コメント・フォルダの依存の検査に渡す根の判定表。
 run_check "検査に渡す根の判定表" bash harness/githooks/lib/check-roots-cases.sh
 
 # 層 3 のフックの判定表とテスト。フックそのものは CI では発火しないが、判定が壊れたことには

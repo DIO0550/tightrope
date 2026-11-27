@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# pre-push が行数・置き場所・コメントの検査に渡す根の判定表。
+# pre-push が行数・置き場所・コメント・フォルダの依存の検査に渡す根の判定表。
 #
 # 本物の `pre-push` と `harness/githooks/lib/*.sh` を使い捨てのリポジトリへ写し、集計の `check-tally.sh`
 # だけを、検査を走らせずに名前とコマンドをタブ区切りで 1 行に書き出す偽物に差し替えて流す。根を決める
@@ -105,6 +105,7 @@ per_crate_checks_of() {
 length_script=harness/githooks/lib/test-file-length.sh
 placement_script=harness/githooks/lib/test-placement.sh
 comment_script=harness/githooks/lib/comment-style.sh
+folder_script=harness/githooks/lib/folder-deps.sh
 
 report "$(joined_sorted "$(per_crate_checks_of テストのファイルの行数 "$length_script")")" \
   "$(joined_sorted "$(checks_of "$length_script" | to_report_form)")" \
@@ -123,5 +124,9 @@ done < <(checks_of "$comment_script")
 report "crates/a/src/m/x.rs:1,crates/c/tests/cli.rs:1" \
   "$(joined_sorted "$(printf '%s' "$comment_findings" | sed -nE 's/^([^:]+:[0-9]+): .*$/\1/p')")" \
   "コメントの検査に渡した根では crates/*/tests の // は報告され、crate の tests/fixtures/ の // は報告されない"
+
+report "フォルダの依存の許可表|bash $folder_script" \
+  "$(checks_of "$folder_script" | to_report_form)" \
+  "フォルダの依存の検査は根を渡さずに 1 回だけ走る"
 
 exit "$cases_failed"

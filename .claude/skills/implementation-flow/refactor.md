@@ -19,7 +19,7 @@
 
 ```bash
 git diff <第 1 工程のコミット> HEAD -- ':(glob)crates/*/tests/**' ':(glob)crates/*/src/**/tests.rs' ':(glob)crates/*/src/**/tests/**' \
-  ':(glob)**/*-cases.sh' ':(glob)**/cases-fixtures.sh' ':(glob)**/cases-report.sh'
+  ':(glob)**/*-cases.sh' ':(glob)**/cases-*.sh'
 ```
 
 書き換えない範囲で**しないこと**:

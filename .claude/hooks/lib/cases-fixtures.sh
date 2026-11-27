@@ -3,7 +3,8 @@
 # フックの判定表(`*-cases.sh`)が共有する、ケースの前提の置き方。落ちる検出器・起動できない python3・
 # 失敗する awk・本体が同じテストヘルパーを渡されたパスへ置くものと、サブエージェントの中の呼び出しの入力を組むもの、
 # 使い捨ての git リポジトリを外の git の環境から切り離して入るもの、偽の sparse index に版を置くもの、
-# 公開からの期間の設定ファイルを置いて検出器へ渡すもの、cargo を走らせる使い捨てのクレートを置くもの。
+# 公開からの期間の設定ファイルを置いて検出器へ渡すもの、cargo を走らせる使い捨てのクレートを置くもの、
+# workspace のメンバーの crate を置くもの。
 #
 # このファイルを使う側の一覧は `.claude/hooks/README.md`「配線」の `lib/cases-fixtures.sh` の行が持つ。
 #
@@ -177,4 +178,19 @@ place_locked_crate() {
 add_path_dep() {
   place_locked_crate "$2" dep || return 1
   printf '\n[dependencies]\ndep = { path = "%s" }\n' "$2" >>"$1/Cargo.toml"
+}
+
+# crate を置く。Cargo.toml は `[dependencies]` の節で終わり、依存は渡した行を並べる。src/lib.rs は空。
+#
+# $1 crate のディレクトリ
+# $2 パッケージ名
+# $3 以降 `[dependencies]` に並べる行
+place_member() {
+  local dir="$1" name="$2"
+  shift 2
+  mkdir -p "$dir/src" || return 1
+  : >"$dir/src/lib.rs"
+  printf '[package]\nname = "%s"\nversion = "0.1.0"\nedition = "2024"\n\n[dependencies]\n' "$name" >"$dir/Cargo.toml"
+  [ "$#" -eq 0 ] && return 0
+  printf '%s\n' "$@" >>"$dir/Cargo.toml"
 }
