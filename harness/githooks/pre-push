@@ -89,6 +89,7 @@ resume_checks
 run_check "編集後の fmt / clippy フックのテスト" bash .claude/hooks/post-edit-rust-test.sh
 run_check "crate の依存の許可表" bash harness/githooks/lib/crate-deps.sh
 run_check "crate の依存の許可表の判定表" bash harness/githooks/lib/crate-deps-cases.sh
+run_check "workspace の lints の継承の判定表" bash harness/githooks/lib/lints-inheritance-cases.sh
 resume_checks
 
 # この文の終了コードがフックの終了コードになる(後ろに文を足すと、失敗しても push が通る)。
