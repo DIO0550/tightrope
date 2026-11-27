@@ -224,7 +224,6 @@ dependencies = [
 name = "tightrope"
 version = "0.1.0"
 dependencies = [
- "clap",
  "presentation",
 ]
 

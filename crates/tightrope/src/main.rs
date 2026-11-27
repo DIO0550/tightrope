@@ -1,5 +1,3 @@
-use clap::Parser;
-
 fn main() {
-    tightrope::cli::Cli::parse();
+    tightrope::cli::Cli::from_process_args();
 }
