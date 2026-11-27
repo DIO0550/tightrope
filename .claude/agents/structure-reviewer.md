@@ -17,6 +17,7 @@ model: inherit
 - `rules/coding.md` — エラーと不在の表現・生成時の検証・値の語彙を型で閉じる・
   不正な状態を型で表現できなくする・I/O を持ってよい場所
 - `docs/tightrope-plan.md` — 差分が触る段の節
+- `docs/report/technical-spec.md`「段の構成」 — crate と役割フォルダの責務
 - `harness/case-law/architecture.md` / `coding.md` — 過去に踏んだ実例
 
 **判断基準は `rules/`、実例は `harness/case-law/`。**
@@ -28,22 +29,26 @@ model: inherit
 `分類: ownership`。計画の検証を通っていても差分の最終形で独立に見る。
 
 - **判定・計算・変換が、第 1 引数（`self`）に取るべき型の `impl` 以外に置かれていないか。**
-  `pipeline`・`cli`・呼び出し側の自由関数に置かれていたら、その値を表す型へ移せないかを当てる
+  `usecase`・`controller`・呼び出し側の自由関数に置かれていたら、その値を表す型へ移せないかを当てる
 - **帰属の理由が、その型に固有の性質を指しているか。** 同じ理由が他の候補の型にも成り立つなら
   理由になっていない
 - **判定（3 軸 → `verdict`）としきい値の既定値が 1 箇所に収まっているか。** 解析・出力・
   設定の読み取りの側に、判定の分岐やしきい値の既定値が増えていないか
   （`rules/architecture.md`「判定は 1 箇所にだけ置く」）
+- **置いたフォルダが `rules/architecture.md`「段の構成」の箇条に合っているか。** domain の型を何を持つかでフォルダに
+  分けたか、DTO → domain の変換と検証が `mapping/inbound` の外に無いか、「使わない」を port の Null Object で表したか、
+  bin を除く crate の `lib.rs` に `pub mod` 以外を置いていないか
 
 ## 依存方向とモジュールの公開 API の観点
 
 `分類: dependency`。
 
-- **`rules/architecture.md`「依存方向のルール」を差分の `use` で確かめる。** 構文解析が LSP・判定を
-  `use` していないか、判定が LSP・git・ファイルを触っていないか、出力が判定をやり直していないか。
-  循環が生まれていないか
-- **I/O（`std::fs` / `std::process::Command` / ネットワーク）が境界のモジュールの外に増えていないか。**
-  `grep -rn 'fs::\|Command::new' crates/*/src/` で入口を数え、`rules/coding.md`「I/O を持ってよい場所」の一覧と突き合わせる
+- **差分の `use` と依存を `rules/architecture.md`「依存方向のルール（必須要件）」の箇条に照らす。** 同じ節の表の検査が
+  落とすものは検査に任せる
+- **I/O が I/O の境界の外に増えていないか**（`rules/coding.md`「I/O を持ってよい場所」）。`rules/architecture.md` の
+  同じ表の検査が見ない形（`Path` のメソッド・`std::io` / `std::env` / `std::net`）を
+  `grep -rnE '(\.|\bPath::)(exists|try_exists|is_file|is_dir|is_symlink|metadata|symlink_metadata|canonicalize|read_link|read_dir)\(|\b(io|env|net)::' crates/*/src/`
+  で拾い、`infrastructure/src/driver/` と bin の crate の外に出ていないかを見る
 - **`pub` が必要以上に広がっていないか。** モジュール外から触る必要の無いものが `pub` になって
   いないか、`pub(crate)` で足りないか
 

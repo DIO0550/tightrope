@@ -18,7 +18,7 @@
 
 ### `unwrap()` / `expect()` は本番コードで使わない
 
-**この禁止はツールが落とす。** `Cargo.toml` の `[lints.clippy]` が `unwrap_used` /
+**この禁止はツールが落とす。** 根の `Cargo.toml` の `[workspace.lints.clippy]` が `unwrap_used` /
 `expect_used` を `deny` にし、`clippy.toml` の `allow-unwrap-in-tests` /
 `allow-expect-in-tests` がテスト内だけ許可する。
 
@@ -148,14 +148,11 @@ Rust の慣習に従い、rustdoc の書式で書く（JSDoc の `@param` は使
 - **lint 抑制を足さない**（`#[allow(..)]` / `#[expect(..)]`）。
   抑制したくなったら**設計のほうを変える**（`dead_code` が出たら lib + bin に分ける、が典型）
 - `unsafe`
-- 判定（`rules/architecture.md`「依存方向のルール（必須要件）」の判定の層）と構文解析での I/O
-  （ファイル読み込み・プロセス起動）。I/O を持ってよい場所は下の節
 
 ## I/O を持ってよい場所
 
-ファイルの読み込み・子プロセス（LSP サーバ・git）の起動は、**外の世界との境界のモジュールだけ**が持つ。
-読んだ結果・応答を受け取ってから先は純粋な関数に切り、判定と構文解析には I/O を持ち込まない。
-境界のモジュールが決まったら、その一覧をこの節に足す。
+ファイルの読み書き・子プロセス（LSP サーバ・git）の起動は**I/O の境界だけ**が持ち、受け取ってから先は純粋な関数に切る。
+I/O の境界の一覧は文で持たず、`rules/architecture.md`「依存方向のルール（必須要件）」の表の検査が持つ。
 
 **Why**: 渡す先が純粋なら、テストが実ファイルや実サーバを要求しない（`rules/testing.md`
 「モックは使わない」と `rules/tdd.md`「LSP は『応答を受け取ってから先』を切り出す」）。
@@ -169,7 +166,7 @@ lint 設定を含む）は、**正しく動くはずという想定だけで書�
 
 ## 規約の適用範囲
 
-**この規約は `src/` の Rust だけでなく、`.claude/hooks/` `.github/scripts/` `harness/` など
+**この規約は `crates/` の Rust だけでなく、`.claude/hooks/` `.github/scripts/` `harness/` など
 ハーネス自身を実装しているコード・doc にも及ぶ。**
 
 - ブロックのネストを浅く保つ・条件式に名前を付ける、は対象言語（bash 等）を問わず適用する
