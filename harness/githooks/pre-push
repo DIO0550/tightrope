@@ -58,7 +58,7 @@ run_check "フォルダの依存の許可表の判定表" bash harness/githooks/
 run_check "lint の水準の属性" bash harness/githooks/lib/lint-level-attributes.sh
 run_check "lint の水準の属性の判定表" bash harness/githooks/lib/lint-level-attributes-cases.sh
 
-# 行数・置き場所・コメント・フォルダの依存・lint の水準の属性の検査に渡す根の判定表。
+# 根を受け取る検査に渡す根の判定表(対象の検査は check-roots-cases.sh の冒頭)。
 run_check "検査に渡す根の判定表" bash harness/githooks/lib/check-roots-cases.sh
 
 # 層 3 のフックの判定表とテスト。フックそのものは CI では発火しないが、判定が壊れたことには

@@ -7,10 +7,10 @@
 # 決まったパス(多くは `crates/a/src/x.rs`)へ中身を直に書いて組む。1 ケースの判定の綴りと、それをどう照らすかは
 # `cases-allowlist.sh` の `decision_of`。期待の違反の行は、このファイルに直に書く。
 # 走らせ方は、ケースの `run_case` / `run_unavailable_case` の後ろに渡すコマンド(多くは根を引数に渡す
-# `run_with_root`)。例外は 3 つで、D1 は根をカレントにして引数なしで呼び(`run_in_root`)、L17 は UTF-8 のロケールで、
-# E2 は失敗する awk を PATH の先頭に置いて呼ぶ。見出し「検査できない」の下のケースは、検査できなかった理由が
-# 標準エラーに出るかまで照らす(`cases-allowlist.sh` の `run_unavailable_case`)。見出し「見ない形」の下のケースは
-# 検査が見ない形で、期待は `miss`。
+# `run_with_root`)。例外は 4 つで、D1 は根をカレントにして引数なしで呼び(`run_in_root`)、L17 は UTF-8 のロケールで、
+# E2 は失敗する awk を PATH の先頭に置いて、E3 は検査のスクリプトだけを別のディレクトリへ写して呼ぶ。
+# 見出し「検査できない」の下のケースは、検査できなかった理由が標準エラーに出るかまで照らす(`cases-allowlist.sh` の
+# `run_unavailable_case`)。見出し「見ない形」の下のケースは検査が見ない形で、期待は `miss`。
 #
 # 使い方: bash harness/githooks/lib/lint-level-attributes-cases.sh
 # 食い違ったケースがあれば exit 1(`ok` だけなら期待どおり)。
@@ -257,5 +257,13 @@ place_tree || exit 1
 failing_awk_prefix="$(failing_awk_path_prefix "$work")" || exit 1
 run_unavailable_case '^lint-level-attributes: .*走査に失敗' \
   'E2 awk が落ちれば、走査に失敗したことを出して検査できない' env PATH="$failing_awk_prefix$PATH" bash "$script" "$tree"
+
+place_tree || exit 1
+mkdir -p "$work/script-alone" || exit 1
+# 検査のスクリプトが無ければ写さずに走らせ、このケースだけを落とす(続くケースも走らせる)。
+[ ! -f "$script" ] || cp "$script" "$work/script-alone/" || exit 1
+run_unavailable_case '^lint-level-attributes: .*test-file-path\.sh を読み込めません' \
+  'E3 隣の test-file-path.sh を読み込めなければ、そのことを出して検査できない' \
+  bash "$work/script-alone/lint-level-attributes.sh" "$tree"
 
 exit "$cases_failed"
