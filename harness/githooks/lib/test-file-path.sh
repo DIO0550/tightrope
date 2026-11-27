@@ -4,11 +4,13 @@
 # 決める awk の関数 `is_test_file_path(path)` と、<根> の下の `*.rs` を awk へ渡す走査 `awk_rs_files_under`。
 # テストのファイルは、名前がちょうど `tests.rs` のファイルと、`tests/` の下。
 #
-# 使う側: test-placement.sh(テストを置いてよい場所)/ test-file-length.sh(行数を測る場所)。どちらも source したうえで
+# 使う側: test-placement.sh(テストを置いてよい場所)/ test-file-length.sh(行数を測る場所)/ folder-deps.sh
+# (`test_file_path_awk` を丸ごと連結して渡し、呼ぶのは `relative_path_of` だけ)。どれも source したうえで
 # `awk_rs_files_under <根> <-v の引数> "$test_file_path_awk"'<プログラム>'` で走らせ、ファイルごとに何を見るかだけを書く。
 #
-# Why(1 つの一覧を 2 つの検査で使い回す。`rules/coding.md`「同じ一覧を、安全な倒れ方が違う 2 箇所で使い回さない」から
-# 外れる): 一覧から漏れる向きは、行数を測らない漏れでも置き場所の検査がその `#[test]` を落とすので止まる。
+# Why(`is_test_file_path` の 1 つの一覧を test-placement.sh と test-file-length.sh の 2 つの検査で使い回す。
+# `rules/coding.md`「同じ一覧を、安全な倒れ方が違う 2 箇所で使い回さない」から外れる): 一覧から漏れる向きは、
+# 行数を測らない漏れでも置き場所の検査がその `#[test]` を落とすので止まる。
 # 一覧を広げる向きは置き場所の検査を緩めるので、広げるときは置き場所の側で決める。
 
 test_file_path_awk='
