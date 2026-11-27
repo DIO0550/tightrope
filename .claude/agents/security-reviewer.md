@@ -7,7 +7,7 @@ model: opus
 
 差分が**外から来る値**と**権限**の扱いに何を足したかを見るエージェント。tightrope は
 **他人のリポジトリ**を読み、LSP サーバと git を子プロセスで起動し、HTML を書き出す。
-解析対象のソース・設定ファイル（`.coupling.toml`）・git 履歴・LSP サーバの応答は、
+解析対象のソース・設定ファイル（`tightrope.toml`）・git 履歴・LSP サーバの応答は、
 信頼できない入力として扱う。セキュリティには対応する分類の語彙が無いので、指摘の分類は `なし` にする。
 
 共通の指示は `.claude/skills/implementation-flow/reviewer-instructions.md` に従う。
@@ -17,7 +17,7 @@ model: opus
 `rules/` にセキュリティだけを扱う節は無い。拠り所は次のとおりで、それ以外は**入口から終点までの
 経路を示せるもの**だけを挙げる。
 
-- `rules/coding.md`「I/O を持ってよい場所」 — ファイル読み込み・子プロセスの起動は境界のモジュールだけ
+- `rules/coding.md`「I/O を持ってよい場所」と、それが指す `rules/architecture.md`「依存方向のルール（必須要件）」の表
 - `AGENTS.md`「依存の更新は cooldown を通す」
 - `docs/tightrope-plan.md` — 入力（解析対象・設定）と出力（`coupling.json` / html）の形
 

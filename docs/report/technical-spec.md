@@ -8,30 +8,44 @@
 
 ## 段の構成
 
+crate を層に、crate の中を役割のフォルダに分ける。拠り所にした原則・使うデザインパターン・却下した案は #252。
+フォルダとファイルは置き場所の約束で、中身ができた回に作る。
+
 ```
-cli → pipeline ─┬→ codebase（ファイルを集めて読む・git log を呼ぶ）   ← I/O の境界
-                ├→ lsp（typescript-language-server との会話）       ← I/O の境界
-                ├→ syntax（import の抽出と解決・参照箇所と構文で決まる強度）
-                ├→ volatility（git log の出力を変更回数に直す）
-                ├→ judgement（3 軸 → 判定・reason）
-                └→ report（coupling.json / terminal / markdown）
+presentation ──→ application ──→ domain
+                     ↑
+infrastructure ──────┘
+tightrope（bin）→ すべて（組み立てるだけ）
 ```
 
-| モジュール | 責務 | 持たないもの |
-|:-----------|:-----|:-------------|
-| `cli` | 引数の受け口と値の解釈 | 判定・I/O の手順 |
-| `config` | `tightrope.toml` を読み、書かれていた値にする | 既定値・判定 |
-| `pipeline` | 段を呼ぶ順序・LSP への問い合わせの組み立て | 判定・構文の判別 |
-| `codebase` | ファイルを集めて読む・`git log` を呼ぶ | 判定・出力の解釈 |
-| `syntax` | import の抽出・解決・参照箇所・構文で決まる強度・宣言の種類 | I/O・LSP・判定 |
-| `lsp` | 子プロセスの起動と JSON-RPC・応答をこちらの型へ直す | 複数の段にまたがる手順 |
-| `volatility` | `git log` の出力を読んで変更回数にする | I/O |
-| `judgement` | しきい値の既定値・決定木・reason | I/O・LSP・git |
-| `report` | `coupling.json` / terminal / markdown | 判定のやり直し |
+| crate | フォルダ | 責務 |
+|:------|:---------|:-----|
+| `domain` | `value_object/` | 制約付きの単純型と choice 型。生成時に検証し、同値で比べる |
+| | `entity/` | 同一性を持つもの（`Module` は path、`Dependency` は from → to）と不変条件 |
+| | `policy/` | 判定の規則。しきい値と既定値・値をしきい値に当てた傾き・判定表 |
+| | `aggregate/` | 集約ルート `Coupling`。並びの決定性と summary の一致を守る |
+| | `workflow/` | report のワークフロー。stage ごとの型と、stage から stage への純粋な関数 |
+| `application` | `dto/` | 境界の形。`inbound/` は port から入る検証前の値、`outbound/` は外へ出す値（`coupling.json` の契約・LSP への問い合わせ）、`request.rs` は presentation から入る値 |
+| | `port/` | 外への口（trait）。引数と戻り値は `dto` だけ |
+| | `mapping/` | `inbound` = DTO → domain（`Result` で返す）、`outbound` = domain → DTO |
+| | `usecase/` | I/O の殻。port を呼ぶ → `mapping::inbound` → `domain::workflow` → `mapping::outbound` |
+| | `error/` | 始められない失敗（終了コード 2）の種類 |
+| `infrastructure` | `driver/` | 外部とのやり取り（ファイル・子プロセス・stdio）。文字列・バイト・パスで返し、application の型を知らない |
+| | `translation/` | 腐敗防止層。外部の形式（TOML・`git log` の出力・LSP の応答・構文木）→ `application::dto::inbound`。純粋 |
+| | `adapter/` | port の実装。`driver` で取り、`translation` で直して返す |
+| `presentation` | `controller/` | 引数の受け口（clap）と `ReportRequest` への変換 |
+| | `view_model/` | 表示用モデル（行・reason の文・改善のヒント） |
+| | `presenter/` | `ReportDocument` / `StartError` → 表示用モデル |
+| | `view/` | 表示用モデル → 文字列（terminal / markdown）、`ReportDocument` → `coupling.json`。書き出しはしない |
+| `tightrope`（bin） | `main.rs` | 引数を受けて `lib.rs` を呼ぶだけ |
+| | `lib.rs` | controller → usecase → presenter → view → 書き出し |
+| | `composition.rs` | adapter を組み立てて port に差す（`--no-lsp` なら `adapter/declaration/disabled`） |
+| | `sink.rs` | 標準出力 / `-o` のファイルへの書き出し |
+| | `exit_code.rs` | 0 / 1 / 2 |
 
-- モジュール名は目安。置いた回に `rules/architecture.md` の表と `rules/naming.md` の語彙へ足す
-- 依存の向きは `rules/architecture.md`「依存方向のルール（必須要件）」に従う。`syntax` は LSP と判定を知らず、`judgement` は解析の結果を値として受け取る
-- git と LSP は「出力・応答を受け取ってから先」を純粋な関数に切り出して TDD する（`rules/tdd.md`）
+- 使ってよい相手は表に写さない。`rules/architecture.md`「依存方向のルール（必須要件）」の表が指す検査が持つ
+- feature（strength・distance など）は役割フォルダの中のファイル名に出る。置いたファイル名と責務の表は、置いた回にこの節へ足す
+- git と LSP は「出力・応答を受け取ってから先」を `translation/` の純粋な関数に切り出して TDD する（`rules/tdd.md`）
 
 ## dryguard からの移植
 
@@ -78,12 +92,15 @@ cli → pipeline ─┬→ codebase（ファイルを集めて読む・git log �
 
 | 層 | テストの仕方 |
 |:---|:-------------|
-| `judgement` | 3 軸の組み合わせごとに期待する判定を先に書く（判定表の全行と保留） |
-| `syntax` | 入力のソースと期待する依存・evidence・強度 |
-| `volatility` | `git log` の出力の文字列から期待する回数 |
-| `lsp` の応答の変換 | 応答の JSON から期待する型 |
-| `cli` | 引数の並びと期待する解釈 |
-| 段をつないだ結果 | `tests/` にフィクスチャのディレクトリを置いて `coupling.json` を見る |
+| `domain/policy`・`domain/workflow` の判定 | 3 軸の組み合わせごとに期待する判定を先に書く（判定表の全行と保留） |
+| `domain/workflow` の解決と強度 | 構文の事実と集めたファイルから期待する依存・evidence・強度 |
+| `infrastructure/translation/syntax` | 入力のソースと期待する構文の事実（import・参照箇所・宣言の種類） |
+| `infrastructure/translation/git_log` | `git log` の出力の文字列から期待する回数 |
+| `infrastructure/translation/lsp_definition` | 応答の JSON から期待する型 |
+| `infrastructure/driver` | `crates/infrastructure/tests/` のフィクスチャに対して実物の I/O で見る |
+| `application/usecase` | port のフェイクを差して、手順と「取れなかった」の扱いを見る |
+| `presentation/controller` | 引数の並びと期待する解釈 |
+| 段をつないだ結果 | `crates/tightrope/tests/` にフィクスチャのディレクトリを置いて `coupling.json` を見る |
 
 - LSP サーバを要するテストは、無い環境で飛ばしたことが分かる形にする（`rules/testing.md`）。最初のサーバを要するテストを足す回に、CI に typescript-language-server を入れて走らせるステップを足す
 

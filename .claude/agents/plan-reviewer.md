@@ -22,6 +22,7 @@ model: inherit
 ## 先に読むもの
 
 - `docs/tightrope-plan.md` — 計画が触る段の節
+- `docs/report/technical-spec.md`「段の構成」 — crate と役割フォルダの責務
 - `rules/architecture.md` — 段の構成・依存方向・ロジックの帰属先・判定の置き場所
 - `rules/coding.md` — エラーと不在の表現・型による境界・I/O を持ってよい場所
 - `rules/naming.md` — 名前と実体の一致・このツールの語彙
@@ -41,9 +42,9 @@ model: inherit
 - **種類のファイル(`.claude/skills/implementation-flow/SKILL.md`「作業の種類」の表)がフェーズ 3 に足すとしたものを、
   計画が持っているか**（`分類: plan`）。作業が種類に合っていないなら、それも指摘する
 - **Issue / PR を分割する計画なら、分けた側が単体でマージできて動作を確かめられるか**（`分類: plan`）
-- **置き場所の根拠が `docs/tightrope-plan.md` の該当節を指しているか**（`分類: plan`）。
-  `rules/architecture.md` のモジュール表が未整備の段に初めて置くなら、その表へ足す行が計画にあるか
-- **ロジックの帰属先が正しいか。** 判定・計算・変換が `pipeline` や呼び出し側のヘルパー関数に
+- **置き場所の根拠が `rules/architecture.md`「段の構成」と `docs/report/technical-spec.md`「段の構成」を指しているか**（`分類: plan`）。
+  `harness/githooks/lib/folder-deps.sh` の `allowed_dependencies` に行の無いフォルダへ置くなら、その行を足す計画になっているか
+- **ロジックの帰属先が正しいか。** 判定・計算・変換が `usecase` や呼び出し側のヘルパー関数に
   置かれようとしていないか。第 1 引数（`self`）に取る型の `impl` へ置けないか
   （`rules/architecture.md`「ロジックの帰属先」。`分類: ownership`）
   - **帰属の理由を反証したか。** 「第 1 引数の型が◯◯だから」とだけ書いて、他の型でも同じ理由が
@@ -52,11 +53,11 @@ model: inherit
   解析・出力・設定の読み取りの側に、判定やしきい値の既定値が漏れ出していないか
   （`rules/architecture.md`「判定は 1 箇所にだけ置く」）
 - **依存方向を壊していないか**（`rules/architecture.md`「依存方向のルール」。`分類: dependency`）。
-  構文解析が LSP・判定を知る、判定が LSP・git・ファイルを直接触る、LSP クライアントが手順を持つ、
-  出力が判定をやり直す、のどれかになっていないか
-- **I/O が境界のモジュールに閉じているか**（`rules/coding.md`「I/O を持ってよい場所」）。
-  判定と構文解析に `fs::` / `Command::new` が入らないか。新しく境界のモジュールを作るなら、
-  その一覧を `rules/coding.md` へ足す行が計画にあるか
+  構文解析が LSP の側を使う、adapter が複数の port を呼ぶ手順を持つ、出力が判定をやり直す、同じフォルダの中で
+  循環する、のどれかになっていないか。計画した `use` と依存が、同じ節の表が指す検査の許可表に反していないか
+- **I/O が境界に閉じているか**（`rules/coding.md`「I/O を持ってよい場所」）。新しく I/O を持つフォルダ・crate を作るなら、
+  `harness/githooks/lib/folder-deps.sh` の `allowed_dependencies` か `harness/githooks/lib/clippy-config-cases.sh` の
+  `io_crates` へ足す行が計画にあるか
 - **取れなかった値（LSP が答えない・git 履歴が無い）を既定値で埋めていないか**
   （`rules/architecture.md`「取れなかった値を既定値で埋めない」。`分類: type`）
 - **LSP・git・ファイルシステムへの問い合わせの単位が答えの単位に揃っているか**
