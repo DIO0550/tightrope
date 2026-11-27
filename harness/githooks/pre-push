@@ -54,9 +54,11 @@ run_check "コメントの形の判定表" bash harness/githooks/lib/comment-sty
 run_check "フォルダの依存の許可表" bash harness/githooks/lib/folder-deps.sh
 run_check "フォルダの依存の許可表の判定表" bash harness/githooks/lib/folder-deps-cases.sh
 
+# lint の水準の属性(rules/coding.md「禁止事項」)と、その判定表。
+run_check "lint の水準の属性" bash harness/githooks/lib/lint-level-attributes.sh
 run_check "lint の水準の属性の判定表" bash harness/githooks/lib/lint-level-attributes-cases.sh
 
-# 行数・置き場所・コメント・フォルダの依存の検査に渡す根の判定表。
+# 行数・置き場所・コメント・フォルダの依存・lint の水準の属性の検査に渡す根の判定表。
 run_check "検査に渡す根の判定表" bash harness/githooks/lib/check-roots-cases.sh
 
 # 層 3 のフックの判定表とテスト。フックそのものは CI では発火しないが、判定が壊れたことには

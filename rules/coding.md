@@ -145,7 +145,7 @@ Rust の慣習に従い、rustdoc の書式で書く（JSDoc の `@param` は使
 
 ## 禁止事項
 
-- **lint 抑制を足さない**（`#[allow(..)]` / `#[expect(..)]`）。
+- **lint 抑制を足さない**（`#[allow(..)]` / `#[expect(..)]` と、deny を下げうる `#[warn(..)]`。`#![..]`・`cfg_attr` の中も含めて `harness/githooks/lib/lint-level-attributes.sh` が落とす）。
   抑制したくなったら**設計のほうを変える**（`dead_code` が出たら lib + bin に分ける、が典型）
 - `unsafe`
 
