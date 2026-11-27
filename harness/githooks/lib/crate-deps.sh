@@ -8,7 +8,8 @@
 #   <crate>: [<節>] の <依存>(workspace の crate)   または   (外部 crate)
 #   <crate>: 許可表に行が無い crate
 # 検査できなかったとき(jq が無い / cargo metadata が落ちた / jq が cargo metadata の出力を読めない /
-# workspace のメンバーが 0 件 / jq の出力に知らない行の種類か分類がある)は、理由を標準エラーへ出して exit 2。
+# workspace のメンバーが 0 件 / jq の出力に知らない行の種類か分類がある / 隣の workspace-metadata.sh を
+# 読み込めない)は、理由を標準エラーへ出して exit 2。
 #
 # 読むのは `<workspace の根>/Cargo.toml` を渡した `cargo metadata --no-deps` の出力。
 # - メンバーごとに、依存の種類(dependencies / dev-dependencies / build-dependencies、target 付きのもの)を
@@ -27,6 +28,12 @@
 # macOS の /bin/bash(3.2)でも走るよう、連想配列など bash 4 以降の機能は使わない。
 
 set -uo pipefail
+
+here="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+source "$here/workspace-metadata.sh" || {
+  echo 'crate-deps: 隣の workspace-metadata.sh を読み込めません' >&2
+  exit 2
+}
 
 root="${1:-.}"
 
@@ -88,32 +95,13 @@ exit_unreadable_line() {
   exit 2
 }
 
-if ! command -v jq >/dev/null 2>&1; then
-  echo 'crate-deps: jq が無いので検査できません' >&2
-  exit 2
-fi
-
-cargo_errors="$(mktemp)" || {
-  echo 'crate-deps: cargo の標準エラーを受ける一時ファイルを作れません' >&2
-  exit 2
-}
-trap 'rm -f "$cargo_errors"' EXIT
-
-metadata="$(cargo metadata --no-deps --format-version 1 --locked --offline \
-  --manifest-path "$root/Cargo.toml" 2>"$cargo_errors")"
-cargo_status=$?
-if [ "$cargo_status" -ne 0 ]; then
-  printf 'crate-deps: %s/Cargo.toml の cargo metadata が落ちました(終了コード %s)\n' "$root" "$cargo_status" >&2
-  cat "$cargo_errors" >&2
-  exit 2
-fi
+metadata="$(workspace_metadata_of "$root" crate-deps)" || exit 2
 
 # 1 行 1 件で、`@tsv` でエスケープした TAB 区切りの行を出す。メンバーは `member<TAB><crate>`、依存は
 # `dependency<TAB><crate><TAB><節><TAB><依存の名前><TAB>workspace|external`。依存の行は、その crate の
 # メンバーの行の後に並ぶ。メンバーごとに 1 行出すので、メンバーが 0 件のときだけ出力が空になる。
-metadata_lines="$(jq -r '
-  .workspace_members as $ids
-  | [.packages[] | select(.id as $id | any($ids[]; . == $id))] as $members
+metadata_lines="$(jq -r "$workspace_member_packages_def"'
+  workspace_member_packages as $members
   | ($members | map(.manifest_path | sub("/[^/]*$"; ""))) as $member_dirs
   | $members[]
   | .name as $crate

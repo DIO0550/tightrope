@@ -84,11 +84,12 @@ run_check "道具の cooldown の判定表" bash harness/deps/tool-cooldown-case
 run_check "lock の公開からの期間の判定表" bash .github/scripts/lock-publish-age-cases.sh
 resume_checks
 
-# 編集後の fmt / clippy フックのテストは使い捨てのクレートを作り、crate の依存の検査は cargo metadata を jq で読むので、cargo と jq の両方が要る。
+# 編集後の fmt / clippy フックのテストは使い捨てのクレートを作り、crate の依存と workspace の lints の継承の検査は cargo metadata を jq で読むので、cargo と jq の両方が要る。
 { command -v cargo >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; } || skip_following_checks "cargo か jq が無い"
 run_check "編集後の fmt / clippy フックのテスト" bash .claude/hooks/post-edit-rust-test.sh
 run_check "crate の依存の許可表" bash harness/githooks/lib/crate-deps.sh
 run_check "crate の依存の許可表の判定表" bash harness/githooks/lib/crate-deps-cases.sh
+run_check "workspace の lints の継承" bash harness/githooks/lib/lints-inheritance.sh
 run_check "workspace の lints の継承の判定表" bash harness/githooks/lib/lints-inheritance-cases.sh
 resume_checks
 
