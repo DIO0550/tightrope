@@ -4,11 +4,11 @@
 #
 # ケースごとに使い捨ての workspace を組み直し(根は `$work/ws`)、根を引数に渡して、本物の cargo で検査を走らせる。
 # P1・P2・D1〜D17・S1 は基準の workspace B(中身は `place_workspace_b`)に手を入れて組み、E1〜E3 は根の Cargo.toml
-# だけを置く(E1 は置かない)。1 ケースの判定の綴りと、それをどう照らすかは `decision_of`。
+# だけを置く(E1 は置かない)。1 ケースの判定の綴りと、それをどう照らすかは `cases-allowlist.sh` の `decision_of`。
 # 走らせ方の例外は 2 つ。D16 は根をカレントにして引数なしで呼ぶ。D17 は偽の cargo(`future_kind_cargo_path_prefix`)を
 # PATH の先頭に置いて呼ぶ。
 # R1・D18 も基準の workspace B に手を入れて組む。E4〜E6 は E1〜E3 と同じ根を置き、検査できなかった理由が
-# 標準エラーに出るかまで照らす(`run_unavailable_case`)。
+# 標準エラーに出るかまで照らす(`cases-allowlist.sh` の `run_unavailable_case`)。
 #
 # 使い方: bash harness/githooks/lib/crate-deps-cases.sh
 # 食い違ったケースがあれば exit 1(`ok` だけなら期待どおり)。
@@ -20,6 +20,7 @@ script="$here/crate-deps.sh"
 
 source "$here/../../../.claude/hooks/lib/cases-report.sh"
 source "$here/../../../.claude/hooks/lib/cases-fixtures.sh"
+source "$here/cases-allowlist.sh"
 
 work="$(make_crate_workdir)" || exit 1
 trap 'rm -rf "$work"' EXIT
@@ -32,21 +33,6 @@ outside="$work/outside"
 
 # 検査が違反を報告するときの見出し。
 heading='^crate の依存が許可表にありません'
-
-# crate を置く。Cargo.toml は `[dependencies]` の節で終わり、依存は渡した行を並べる。src/lib.rs は空。
-#
-# $1 crate のディレクトリ
-# $2 パッケージ名
-# $3 以降 `[dependencies]` に並べる行
-place_member() {
-  local dir="$1" name="$2"
-  shift 2
-  mkdir -p "$dir/src" || return 1
-  : >"$dir/src/lib.rs"
-  printf '[package]\nname = "%s"\nversion = "0.1.0"\nedition = "2024"\n\n[dependencies]\n' "$name" >"$dir/Cargo.toml"
-  [ "$#" -eq 0 ] && return 0
-  printf '%s\n' "$@" >>"$dir/Cargo.toml"
-}
 
 # 前のケースの workspace と外の crate を消し、基準の workspace B を置く。
 place_workspace_b() {
@@ -93,134 +79,6 @@ remove_from_member() {
   local manifest="$workspace/crates/$1/Cargo.toml"
   awk -v prefix="$2" 'index($0, prefix) != 1' "$manifest" >"$manifest.next"
   mv "$manifest.next" "$manifest"
-}
-
-# 検査を走らせた後の標準出力・標準エラー・終了コードから、ケースの判定を出す。
-#   unavailable  exit 2 で、標準出力が空
-#   pass         exit 0 で、標準出力・標準エラーとも空。どちらかに何か出ていれば `pass(出力あり)`
-#   deny         exit 1 で見出しを出し、見出しを除いた違反の行の集合が期待と完全一致する。違えば `deny(違反の行が違う)`
-#   broken       それ以外(`decide` が broken を返したもの)
-#
-# $1 標準出力を書いたファイル
-# $2 標準エラーを書いたファイル
-# $3 終了コード
-# $4 期待する違反の行(1 行 1 件。deny 以外では空)
-decision_of() {
-  local stdout_file="$1" stderr_file="$2" status="$3" expected_lines="$4" output decision
-  local reported_unavailable=no printed_nothing=no
-  output="$(cat "$stdout_file")"
-  [ "$status" -eq 2 ] && [ -z "$output" ] && reported_unavailable=yes
-  if [ "$reported_unavailable" = yes ]; then
-    echo unavailable
-    return 0
-  fi
-  decision="$(decide "$output" "$status" "$heading")"
-  case "$decision" in
-    pass)
-      [ -z "$output" ] && [ ! -s "$stderr_file" ] && printed_nothing=yes
-      [ "$printed_nothing" = yes ] && { echo pass; return 0; }
-      echo 'pass(出力あり)'
-      ;;
-    deny)
-      [ "$(violations_of "$stdout_file")" = "$(sorted_lines_of "$expected_lines")" ] && { echo deny; return 0; }
-      echo 'deny(違反の行が違う)'
-      ;;
-    *) echo "$decision" ;;
-  esac
-}
-
-# 検査の標準出力から見出しを除いた行を、並べ替えて出す。
-#
-# $1 標準出力を書いたファイル
-violations_of() {
-  grep -vE "$heading" "$1" | LC_ALL=C sort
-}
-
-# 1 行 1 件の行を、空行を除いて並べ替えて出す。
-#
-# $1 行
-sorted_lines_of() {
-  printf '%s\n' "$1" | grep -v '^$' | LC_ALL=C sort
-}
-
-# 食い違ったケースの、期待した違反の行と実際の違反の行を字下げして出す。実際の行が無ければ `なし`。
-#
-# $1 標準出力を書いたファイル
-# $2 期待する違反の行
-show_violation_lines() {
-  local actual
-  sorted_lines_of "$2" | sed 's/^/       期待: /'
-  actual="$(violations_of "$1")"
-  if [ -z "$actual" ]; then
-    echo '       実際: なし'
-    return 0
-  fi
-  printf '%s\n' "$actual" | sed 's/^/       実際: /'
-}
-
-# 検査を走らせて、判定を表の期待と照らす。食い違ったら、期待した違反の行と実際の違反の行も出す。
-#
-# $1 期待する判定(pass / deny / unavailable)
-# $2 期待する違反の行(1 行 1 件。deny 以外では空)
-# $3 ケース名
-# $4 以降 検査を走らせるコマンド
-run_case() {
-  local expected="$1" expected_lines="$2" label="$3" status=0 decision
-  shift 3
-  "$@" >"$work/stdout" 2>"$work/stderr" || status=$?
-  decision="$(decision_of "$work/stdout" "$work/stderr" "$status" "$expected_lines")"
-  report "$expected" "$decision" "$label"
-  [ "$decision" = "$expected" ] && return 0
-  printf '       終了コード: %s\n' "$status"
-  [ "$expected" = deny ] && show_violation_lines "$work/stdout" "$expected_lines"
-  return 0
-}
-
-# 標準エラーに当たる行が無かった綴りを、1 行 1 件で出す。すべて当たれば何も出さない。
-#
-# $1 標準エラーを書いたファイル
-# $2 当たるはずの行の拡張正規表現(1 行 1 件)
-missing_reasons_of() {
-  local stderr_file="$1" reason
-  while IFS= read -r reason; do
-    [ -n "$reason" ] || continue
-    grep -qE -- "$reason" "$stderr_file" || printf '%s\n' "$reason"
-  done <<<"$2"
-}
-
-# 検査を走らせて、検査できなかったこと(判定 unavailable)と、その理由が標準エラーに出たことを照らす。
-# 当たる行が無い綴りがあれば、判定の後ろに `(理由が無い)` を付けて食い違いにし、その綴りと標準エラーを出す。
-#
-# $1 標準エラーに当たるはずの行の拡張正規表現(1 行 1 件)
-# $2 ケース名
-# $3 以降 検査を走らせるコマンド
-run_unavailable_case() {
-  local expected_reasons="$1" label="$2" status=0 decision missing_reasons
-  shift 2
-  "$@" >"$work/stdout" 2>"$work/stderr" || status=$?
-  decision="$(decision_of "$work/stdout" "$work/stderr" "$status" '')"
-  missing_reasons="$(missing_reasons_of "$work/stderr" "$expected_reasons")"
-  [ -z "$missing_reasons" ] || decision="$decision(理由が無い)"
-  report unavailable "$decision" "$label"
-  [ "$decision" = unavailable ] && return 0
-  printf '       終了コード: %s\n' "$status"
-  printf '%s\n' "$missing_reasons" | grep -v '^$' | sed 's/^/       無い理由: /'
-  sed 's/^/       標準エラー: /' "$work/stderr"
-  return 0
-}
-
-# 根を引数に渡して検査を走らせる。
-#
-# $1 workspace の根
-run_with_root() {
-  bash "$script" "$1"
-}
-
-# 根をカレントにして、引数なしで検査を走らせる。
-#
-# $1 workspace の根
-run_in_root() {
-  (cd "$1" && bash "$script")
 }
 
 # 本物の cargo の出力の `"kind":"build"` を `"kind":"future"` に置き換える偽の cargo を置き、PATH の先頭に足す値を出す。
