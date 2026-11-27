@@ -52,12 +52,10 @@ model: inherit
 - **判定（3 軸 → `verdict`）としきい値の既定値が 1 箇所に収まっているか**（`分類: ownership`）。
   解析・出力・設定の読み取りの側に、判定やしきい値の既定値が漏れ出していないか
   （`rules/architecture.md`「判定は 1 箇所にだけ置く」）
-- **依存方向を壊していないか**（`rules/architecture.md`「依存方向のルール」。`分類: dependency`）。
-  構文解析が LSP の側を使う、adapter が複数の port を呼ぶ手順を持つ、出力が判定をやり直す、同じフォルダの中で
-  循環する、のどれかになっていないか。計画した `use` と依存が、同じ節の表が指す検査の許可表に反していないか
-- **I/O が境界に閉じているか**（`rules/coding.md`「I/O を持ってよい場所」）。新しく I/O を持つフォルダ・crate を作るなら、
-  `harness/githooks/lib/folder-deps.sh` の `allowed_dependencies` か `harness/githooks/lib/clippy-config-cases.sh` の
-  `io_crates` へ足す行が計画にあるか
+- **依存方向を壊していないか**（`分類: dependency`）。計画した `use` と依存を `rules/architecture.md`「依存方向のルール（必須要件）」の
+  箇条と、同じ節の表が指す検査の許可表に照らす
+- **I/O が I/O の境界に閉じているか**（`rules/coding.md`「I/O を持ってよい場所」）。新しく I/O を持つフォルダ・crate を作るなら、
+  `rules/architecture.md`「依存方向のルール（必須要件）」の表が指す許可表へ足す行が計画にあるか
 - **取れなかった値（LSP が答えない・git 履歴が無い）を既定値で埋めていないか**
   （`rules/architecture.md`「取れなかった値を既定値で埋めない」。`分類: type`）
 - **LSP・git・ファイルシステムへの問い合わせの単位が答えの単位に揃っているか**

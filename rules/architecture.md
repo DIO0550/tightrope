@@ -6,33 +6,33 @@
 
 ## 段の構成
 
-crate を層に、crate の中を役割のフォルダに分ける。責務と向きは `docs/report/technical-spec.md`「段の構成」、向きを落とす検査は次の節の表。
+crate を層に、crate の中を役割フォルダに分ける。責務と crate 間の依存の向きは `docs/report/technical-spec.md`「段の構成」の表と図、フォルダ間の依存の向きは次の節の表の検査が持つ。
 
 - **bin を除く crate の `lib.rs` は、役割フォルダの `pub mod` だけを置く**
-- **domain の型は何を持つかでフォルダを選ぶ。** 判定の規則（しきい値・傾き・判定表）なら `policy/`、集約ルートなら
+- **domain の型は何を持つかでフォルダを選ぶ。** 判定の規則（しきい値と既定値・`lean`・判定表）なら `policy/`、集約ルートなら
   `aggregate/`、同一性を持つなら `entity/`、ワークフローの stage の型なら `workflow/`、それ以外の値は `value_object/`
 - **ワークフロー（`domain/workflow/`）は stage ごとに型を変えた純粋な関数で並べ、I/O は stage の間で `usecase` が port を通して行う**
 - **DTO を domain の型にする変換（とその変換での検証）は `mapping/inbound` だけに置き、`Result` で返す。**
   外部の形式を読む（`translation/`・`controller/`）・値の制約を守る（`value_object/` の生成）とは別の持ち場
-- **feature は役割フォルダの中のファイル名に出し、層をまたいで同じ名前にする**
+- **port の名前を、その port から入る `dto/inbound`・それを直す `mapping/inbound`・port を実装する `adapter` の名前に揃える**
 - **「使わない」（`--no-lsp` など）は同じ port の Null Object で表し、既定値で埋めず「取れなかった」を返す**
 
 ## 依存方向のルール（必須要件）
 
-- **構文解析は意味情報（LSP）を知らない。** `translation/syntax/`・`adapter/syntax` は `translation/lsp_definition`・
-  `adapter/declaration/`・`driver/lsp/` を使わない（下の表の検査はこの区別を見ない）。知ると「LSP 無しでも動く」が壊れる
+- **構文解析は意味情報（LSP）を知らない。** `translation/syntax`・`adapter/syntax` は `translation/lsp_definition`・
+  `adapter/declaration`・`driver/lsp` を使わない（下の表の検査はこの区別を見ない）。知ると「LSP 無しでも動く」が壊れる
 - **adapter はオーケストレーションを持たない。** 複数の port を呼ぶ手順は `usecase` の責務
 - **出力は判定をやり直さない。** `coupling.json` が持つ値を見せ方に変えるだけ。漏れると JSON と HTML で答えが食い違う
 - 循環依存は全面禁止（同じフォルダの中のファイル同士は、下の表の検査が見ない）
 
-**下の表の検査が落とす向き・I/O・serde・`mod.rs` は、文で再掲しない**（許可表の根拠は `docs/report/technical-spec.md`「段の構成」）。
+**下の表の検査が落とす依存の向き・I/O・serde・`mod.rs` は、文で再掲しない**（許可表の根拠になる責務は `docs/report/technical-spec.md`「段の構成」）。
 
 | 縛るもの | 検査 |
 |---|---|
-| crate 間の向き・使ってよい外部 crate | 各 crate の `[dependencies]` と `harness/githooks/lib/crate-deps.sh` の `allowed_dependencies` |
+| crate 間の依存の向き・使ってよい外部 crate | 各 crate の `[dependencies]` と `harness/githooks/lib/crate-deps.sh` の `allowed_dependencies` |
 | I/O を持ってよい crate | `harness/githooks/lib/clippy-config-cases.sh` の `io_crates` と、それ以外の crate の `clippy.toml` |
-| フォルダ間の向き・I/O と serde を持ってよいフォルダ・`lib.rs` からの参照 | `harness/githooks/lib/folder-deps.sh` の `allowed_dependencies` |
-| `mod.rs`（`tests/` の下は落とさない） | 根の `Cargo.toml` の `mod_module_files` |
+| フォルダ間の依存の向き・`std::fs` / `std::process` / `std::os` の名前で書いた I/O と serde を持ってよいフォルダ・`lib.rs` からの参照（`Path` のメソッド・`std::io` / `std::env` / `std::net` は見ない） | `harness/githooks/lib/folder-deps.sh` の `allowed_dependencies` |
+| `mod.rs`（クレート直下の `tests/` の下は落とさない） | 根の `Cargo.toml` の `mod_module_files` |
 
 ## ロジックの帰属先
 

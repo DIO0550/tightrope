@@ -85,7 +85,7 @@
 
 | 分類 | 対応する規範 | 旧語彙 |
 | --- | --- | --- |
-| `ownership` | rules/architecture.md「ロジックの帰属先」「判定は 1 箇所にだけ置く」 | `ownership-*` `domain-*` `logic-ownership` `service-placement` `utils-form` |
+| `ownership` | rules/architecture.md「段の構成」「ロジックの帰属先」「判定は 1 箇所にだけ置く」 | `ownership-*` `domain-*` `logic-ownership` `service-placement` `utils-form` |
 | `dependency` | rules/architecture.md「依存方向のルール」「モジュールの公開 API」/ rules/coding.md「I/O を持ってよい場所」 | `layer-dependency` `module-api` |
 | `type` | rules/coding.md「エラーと不在の表現」「生成時に検証し」「値の語彙を型で閉じる」「不正な状態を型で表現できなくする」/ rules/architecture.md「取れなかった値を既定値で埋めない」 | `companion-object` `immutability` `result-option` `signature` `type-vocabulary` `illegal-state` |
 | `duplication` | rules/coding.md「同じ処理が2箇所に現れたら共通化する」/ rules/testing.md「テスト用ヘルパーの置き場所」 | `duplication-*` |

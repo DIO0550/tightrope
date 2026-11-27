@@ -46,6 +46,8 @@ model: opus
 - **`.github/workflows/` の `run:` に、PR のタイトル・本文・ブランチ名などを `${{ }}` で直接
   埋め込んでいないか。** `pull_request_target` で PR のコードを動かしていないか。秘密情報を
   ログへ出していないか。アクションを commit hash で固定しているか
+- **I/O の許可表（`harness/githooks/lib/folder-deps.sh` の `allowed_dependencies`・`harness/githooks/lib/clippy-config-cases.sh` の
+  `io_crates`）に I/O のモジュールや `*` を足していないか。** 足したなら、その場所へ解析対象から来た値が届くか
 - **`.claude/hooks/` `.github/scripts/` `harness/` のシェルが、入力の JSON から取り出した値を
   引用符無しで展開していないか**
 - **`unsafe` が増えていないか**（`rules/coding.md`「禁止事項」）

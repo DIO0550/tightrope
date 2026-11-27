@@ -35,17 +35,20 @@ model: inherit
 - **判定（3 軸 → `verdict`）としきい値の既定値が 1 箇所に収まっているか。** 解析・出力・
   設定の読み取りの側に、判定の分岐やしきい値の既定値が増えていないか
   （`rules/architecture.md`「判定は 1 箇所にだけ置く」）
+- **置いたフォルダが `rules/architecture.md`「段の構成」の箇条に合っているか。** domain の型を何を持つかでフォルダに
+  分けたか、DTO → domain の変換と検証が `mapping/inbound` の外に無いか、「使わない」を port の Null Object で表したか、
+  bin を除く crate の `lib.rs` に `pub mod` 以外を置いていないか
 
 ## 依存方向とモジュールの公開 API の観点
 
 `分類: dependency`。
 
-- **`rules/architecture.md`「依存方向のルール」を差分の `use` で確かめる。** 構文解析が LSP の側を
-  `use` していないか、adapter が複数の port を呼ぶ手順を持っていないか、出力が判定をやり直していないか。
-  同じフォルダの中で循環が生まれていないか。ほかの向きは同じ節の表が指す検査が落とす
-- **I/O（`std::fs` / `std::process::Command` / ネットワーク）が境界の外に増えていないか。**
-  `grep -rn 'fs::\|Command::new' crates/*/src/` で入口を数え、`harness/githooks/lib/folder-deps.sh` の `allowed_dependencies` と
-  `harness/githooks/lib/clippy-config-cases.sh` の `io_crates`（`rules/coding.md`「I/O を持ってよい場所」が指す表）と突き合わせる
+- **差分の `use` と依存を `rules/architecture.md`「依存方向のルール（必須要件）」の箇条に照らす。** 同じ節の表の検査が
+  落とすものは検査に任せる
+- **I/O が I/O の境界の外に増えていないか**（`rules/coding.md`「I/O を持ってよい場所」）。`rules/architecture.md` の
+  同じ表の検査が見ない形（`Path` のメソッド・`std::io` / `std::env` / `std::net`）を
+  `grep -rnE '\.(exists|try_exists|is_file|is_dir|is_symlink|metadata|symlink_metadata|canonicalize|read_link|read_dir)\(|\b(io|env|net)::' crates/*/src/`
+  で拾い、`infrastructure/src/driver/` と bin の crate の外に出ていないかを見る
 - **`pub` が必要以上に広がっていないか。** モジュール外から触る必要の無いものが `pub` になって
   いないか、`pub(crate)` で足りないか
 

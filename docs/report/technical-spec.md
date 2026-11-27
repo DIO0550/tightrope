@@ -8,8 +8,9 @@
 
 ## 段の構成
 
-crate を層に、crate の中を役割のフォルダに分ける。拠り所にした原則・使うデザインパターン・却下した案は #252。
-フォルダとファイルは置き場所の約束で、中身ができた回に作る。
+crate を層に、crate の中を役割フォルダに分ける。拠り所にした原則・使うデザインパターン・却下した案は #252。
+見出しの「段」は crate と役割フォルダの構成を指し、ワークフロー（`domain/workflow/`）の段階は stage と呼ぶ。
+フォルダとファイルは置き場所の約束で、中身ができた回に作る。`application` crate はまだ無い（下の図と表は目標の構成）。
 
 ```
 presentation ──→ application ──→ domain
@@ -20,31 +21,31 @@ tightrope（bin）→ すべて（組み立てるだけ）
 
 | crate | フォルダ | 責務 |
 |:------|:---------|:-----|
-| `domain` | `value_object/` | 制約付きの単純型と choice 型。生成時に検証し、同値で比べる |
+| `domain` | `value_object/` | 制約付きの単純型と enum（choice 型）。生成時に検証し、同値で比べる |
 | | `entity/` | 同一性を持つもの（`Module` は path、`Dependency` は from → to）と不変条件 |
-| | `policy/` | 判定の規則。しきい値と既定値・値をしきい値に当てた傾き・判定表 |
+| | `policy/` | 判定の規則。しきい値と既定値・値をしきい値に当てた `lean`・判定表 |
 | | `aggregate/` | 集約ルート `Coupling`。並びの決定性と summary の一致を守る |
 | | `workflow/` | report のワークフロー。stage ごとの型と、stage から stage への純粋な関数 |
 | `application` | `dto/` | 境界の形。`inbound/` は port から入る検証前の値、`outbound/` は外へ出す値（`coupling.json` の契約・LSP への問い合わせ）、`request.rs` は presentation から入る値 |
 | | `port/` | 外への口（trait）。引数と戻り値は `dto` だけ |
-| | `mapping/` | `inbound` = DTO → domain（`Result` で返す）、`outbound` = domain → DTO |
+| | `mapping/` | `inbound` = DTO → domain（持ち場は `rules/architecture.md`「段の構成」）、`outbound` = domain → DTO |
 | | `usecase/` | I/O の殻。port を呼ぶ → `mapping::inbound` → `domain::workflow` → `mapping::outbound` |
 | | `error/` | 始められない失敗（終了コード 2）の種類 |
 | `infrastructure` | `driver/` | 外部とのやり取り（ファイル・子プロセス・stdio）。文字列・バイト・パスで返し、application の型を知らない |
-| | `translation/` | 腐敗防止層。外部の形式（TOML・`git log` の出力・LSP の応答・構文木）→ `application::dto::inbound`。純粋 |
+| | `translation/` | 腐敗防止。外部の形式（TOML・`git log` の出力・LSP の応答・構文木）→ `application::dto::inbound`。純粋 |
 | | `adapter/` | port の実装。`driver` で取り、`translation` で直して返す |
 | `presentation` | `controller/` | 引数の受け口（clap）と `ReportRequest` への変換 |
 | | `view_model/` | 表示用モデル（行・reason の文・改善のヒント） |
 | | `presenter/` | `ReportDocument` / `StartError` → 表示用モデル |
 | | `view/` | 表示用モデル → 文字列（terminal / markdown）、`ReportDocument` → `coupling.json`。書き出しはしない |
-| `tightrope`（bin） | `main.rs` | 引数を受けて `lib.rs` を呼ぶだけ |
+| `tightrope`（bin） | `main.rs` | `lib.rs` との分け方は `rules/architecture.md`「lib と bin を分ける」 |
 | | `lib.rs` | controller → usecase → presenter → view → 書き出し |
 | | `composition.rs` | adapter を組み立てて port に差す（`--no-lsp` なら `adapter/declaration/disabled`） |
 | | `sink.rs` | 標準出力 / `-o` のファイルへの書き出し |
 | | `exit_code.rs` | 0 / 1 / 2 |
 
 - 使ってよい相手は表に写さない。`rules/architecture.md`「依存方向のルール（必須要件）」の表が指す検査が持つ
-- feature（strength・distance など）は役割フォルダの中のファイル名に出る。置いたファイル名と責務の表は、置いた回にこの節へ足す
+- 層をまたいで揃える名前は `rules/architecture.md`「段の構成」の port の名前。置いたファイル名と責務の表は、置いた回にこの節へ足す
 - git と LSP は「出力・応答を受け取ってから先」を `translation/` の純粋な関数に切り出して TDD する（`rules/tdd.md`）
 
 ## dryguard からの移植
@@ -90,7 +91,7 @@ tightrope（bin）→ すべて（組み立てるだけ）
 
 ## テスト
 
-| 層 | テストの仕方 |
+| 対象 | テストの仕方 |
 |:---|:-------------|
 | `domain/policy`・`domain/workflow` の判定 | 3 軸の組み合わせごとに期待する判定を先に書く（判定表の全行と保留） |
 | `domain/workflow` の解決と強度 | 構文の事実と集めたファイルから期待する依存・evidence・強度 |
