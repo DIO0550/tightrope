@@ -54,6 +54,8 @@ run_check "コメントの形の判定表" bash harness/githooks/lib/comment-sty
 run_check "フォルダの依存の許可表" bash harness/githooks/lib/folder-deps.sh
 run_check "フォルダの依存の許可表の判定表" bash harness/githooks/lib/folder-deps-cases.sh
 
+run_check "lint の水準の属性の判定表" bash harness/githooks/lib/lint-level-attributes-cases.sh
+
 # 行数・置き場所・コメント・フォルダの依存の検査に渡す根の判定表。
 run_check "検査に渡す根の判定表" bash harness/githooks/lib/check-roots-cases.sh
 
