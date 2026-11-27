@@ -195,6 +195,16 @@ printf 'const SAMPLE: &str = r#"#[allow(dead_code)] fn f() {}"#;\n' >"$x_rs" || 
 run_case deny 'crates/a/src/x.rs:1: const SAMPLE: &str = r#"#[allow(dead_code)] fn f() {}"#;' \
   'C4 テストへ入力として渡す Rust の文字列の中の属性も出す' run_with_root "$tree"
 
+place_tree || exit 1
+printf 'pub fn 再試行allow() {}\n' >"$x_rs" || exit 1
+run_case deny 'crates/a/src/x.rs:1: pub fn 再試行allow() {}' \
+  'C5 ASCII 以外の文字で終わる識別子に続く語も出す' run_with_root "$tree"
+
+place_tree || exit 1
+printf 'fn f(value: Option<u8>) -> u8 {\n    value.r#expect("value")\n}\n' >"$x_rs" || exit 1
+run_case deny 'crates/a/src/x.rs:2:     value.r#expect("value")' \
+  'C6 修飾した生の識別子 .r#expect(..) も出す' run_with_root "$tree"
+
 # 拾わない形
 
 place_tree || exit 1

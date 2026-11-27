@@ -18,12 +18,14 @@
 # - 空白には、rustc が空白とみなす ASCII 以外の文字(U+0085・U+200E・U+200F・U+2028・U+2029)も含める。
 #   awk は `LC_ALL=C` で走らせ、これらを UTF-8 のバイト列で照らす(UTF-8 のロケールでは、gawk と BWK awk で
 #   バイト列の式が当たらない)
-# - 語の直前が `.` / `:` / 識別子の文字なら拾わない(`.expect(`・`Result::expect(`・`my_allow(`)
+# - 語の直前が `.` / `:` / ASCII の識別子の文字(英数字と `_`)なら拾わない(`.expect(`・`Result::expect(`・`my_allow(`)
 # - doc・`//` のコメント・文字列の中も読み分けずに拾う
 #
 # 落とす側へ倒した代償と、避け方
 # - `allow` / `expect` / `warn` という名前の関数の定義と、修飾しない呼び出し → 名前を変える。
 #   語は大文字と小文字を区別するので、enum のバリアント `Warn` は拾わない
+# - ASCII 以外の文字で終わる識別子に続く語(`再試行allow(`)と、修飾した生の識別子(`.r#expect(`) → 名前を変える。
+#   語を ASCII 以外の文字の直後に置かない・`r#` を使わない
 # - 語で終わる行 → 言い換える
 # - 語の後に `(` が続く英文の doc → 言い換える
 # - 上の 2 つで、語がこのツールの語彙(`rules/naming.md` の語彙表の `verdict` の `warn`)なら、言い換えずに
@@ -54,7 +56,7 @@ here="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
 root="${1:-.}"
 
-# 語の直前。行頭か、`.` / `:` / 識別子の文字以外の 1 文字。
+# 語の直前。行頭か、`.` / `:` / ASCII の識別子の文字以外の 1 文字。
 preceding_pattern='(^|[^.:[:alnum:]_])'
 # lint の水準のうち、deny / forbid 以外の語。
 level_word_pattern='(allow|expect|warn)'
