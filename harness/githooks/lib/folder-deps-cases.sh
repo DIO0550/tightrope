@@ -48,6 +48,25 @@ prepend_to_file() {
   mv "$tree/$1.next" "$tree/$1"
 }
 
+# `-type l` を渡されたときだけ、読めなかったと言って 2 で落ちる find を置き、PATH の先頭に足す値を返す。
+# それ以外の引数で呼ばれたら、置いた時点の PATH で見つかる find へそのまま渡す。
+#
+# $1 置き場のディレクトリ(その下の `failing-find-bin/` に置く)
+failing_symlink_find_path_prefix() {
+  local real_find
+  real_find="$(command -v find)" || return 1
+  mkdir -p "$1/failing-find-bin" || return 1
+  cat >"$1/failing-find-bin/find" <<SH || return 1
+#!/bin/sh
+case " \$* " in
+  *" -type l "*) echo "find: cannot open" >&2; exit 2 ;;
+esac
+exec "$real_find" "\$@"
+SH
+  chmod +x "$1/failing-find-bin/find" || return 1
+  printf '%s:' "$1/failing-find-bin"
+}
+
 # 前のケースの木を消し、基準の木 B を置く。各 crate の場所ごとに、許可表で許された相手を参照するファイルを置く。
 place_tree_b() {
   local member
@@ -241,6 +260,115 @@ crates/application/tests/r1.rs:1: presentation::view(許可表の application/sr
 crates/infrastructure/tests/r1.rs:1: serde(許可表の infrastructure/src の行の和集合)
 crates/presentation/tests/r1.rs:1: std::fs(許可表の presentation/src の行の和集合)' \
   'R1 * 以外の 21 行と 4 つの crate の tests/ に許可されていない相手を 1 つずつ足すと 25 行出る' run_with_root "$tree"
+
+place_tree_b || exit 1
+io_and_serde='use std::fs;
+use std::process::Command;
+use std::os::unix::fs::PermissionsExt;
+#[derive(serde::Serialize)] struct Row;'
+for member in domain application infrastructure presentation; do
+  prepend_to_file "crates/$member/src/lib.rs" "$io_and_serde" || exit 1
+  place_file "crates/$member/tests/r1.rs" <<<"$io_and_serde" || exit 1
+done
+for folder in domain/src/value_object domain/src/entity domain/src/policy domain/src/aggregate domain/src/workflow \
+  application/src/dto application/src/port application/src/mapping application/src/usecase application/src/error \
+  infrastructure/src/driver infrastructure/src/translation infrastructure/src/adapter \
+  presentation/src/controller presentation/src/view_model presentation/src/presenter presentation/src/view; do
+  place_file "crates/$folder/r1.rs" <<<"$io_and_serde" || exit 1
+done
+run_case deny 'crates/domain/src/lib.rs:1: std::fs(許可表の行 domain/src/lib.rs|)
+crates/domain/src/lib.rs:2: std::process(許可表の行 domain/src/lib.rs|)
+crates/domain/src/lib.rs:3: std::os(許可表の行 domain/src/lib.rs|)
+crates/domain/src/lib.rs:4: serde(許可表の行 domain/src/lib.rs|)
+crates/domain/src/value_object/r1.rs:1: std::fs(許可表の行 domain/src/value_object|)
+crates/domain/src/value_object/r1.rs:2: std::process(許可表の行 domain/src/value_object|)
+crates/domain/src/value_object/r1.rs:3: std::os(許可表の行 domain/src/value_object|)
+crates/domain/src/value_object/r1.rs:4: serde(許可表の行 domain/src/value_object|)
+crates/domain/src/entity/r1.rs:1: std::fs(許可表の行 domain/src/entity|domain::value_object)
+crates/domain/src/entity/r1.rs:2: std::process(許可表の行 domain/src/entity|domain::value_object)
+crates/domain/src/entity/r1.rs:3: std::os(許可表の行 domain/src/entity|domain::value_object)
+crates/domain/src/entity/r1.rs:4: serde(許可表の行 domain/src/entity|domain::value_object)
+crates/domain/src/policy/r1.rs:1: std::fs(許可表の行 domain/src/policy|domain::value_object)
+crates/domain/src/policy/r1.rs:2: std::process(許可表の行 domain/src/policy|domain::value_object)
+crates/domain/src/policy/r1.rs:3: std::os(許可表の行 domain/src/policy|domain::value_object)
+crates/domain/src/policy/r1.rs:4: serde(許可表の行 domain/src/policy|domain::value_object)
+crates/domain/src/aggregate/r1.rs:1: std::fs(許可表の行 domain/src/aggregate|domain::entity domain::value_object)
+crates/domain/src/aggregate/r1.rs:2: std::process(許可表の行 domain/src/aggregate|domain::entity domain::value_object)
+crates/domain/src/aggregate/r1.rs:3: std::os(許可表の行 domain/src/aggregate|domain::entity domain::value_object)
+crates/domain/src/aggregate/r1.rs:4: serde(許可表の行 domain/src/aggregate|domain::entity domain::value_object)
+crates/domain/src/workflow/r1.rs:1: std::fs(許可表の行 domain/src/workflow|domain::policy domain::aggregate domain::entity domain::value_object)
+crates/domain/src/workflow/r1.rs:2: std::process(許可表の行 domain/src/workflow|domain::policy domain::aggregate domain::entity domain::value_object)
+crates/domain/src/workflow/r1.rs:3: std::os(許可表の行 domain/src/workflow|domain::policy domain::aggregate domain::entity domain::value_object)
+crates/domain/src/workflow/r1.rs:4: serde(許可表の行 domain/src/workflow|domain::policy domain::aggregate domain::entity domain::value_object)
+crates/application/src/lib.rs:1: std::fs(許可表の行 application/src/lib.rs|)
+crates/application/src/lib.rs:2: std::process(許可表の行 application/src/lib.rs|)
+crates/application/src/lib.rs:3: std::os(許可表の行 application/src/lib.rs|)
+crates/application/src/lib.rs:4: serde(許可表の行 application/src/lib.rs|)
+crates/application/src/dto/r1.rs:1: std::fs(許可表の行 application/src/dto|serde)
+crates/application/src/dto/r1.rs:2: std::process(許可表の行 application/src/dto|serde)
+crates/application/src/dto/r1.rs:3: std::os(許可表の行 application/src/dto|serde)
+crates/application/src/port/r1.rs:1: std::fs(許可表の行 application/src/port|application::dto)
+crates/application/src/port/r1.rs:2: std::process(許可表の行 application/src/port|application::dto)
+crates/application/src/port/r1.rs:3: std::os(許可表の行 application/src/port|application::dto)
+crates/application/src/port/r1.rs:4: serde(許可表の行 application/src/port|application::dto)
+crates/application/src/mapping/r1.rs:1: std::fs(許可表の行 application/src/mapping|application::dto domain::*)
+crates/application/src/mapping/r1.rs:2: std::process(許可表の行 application/src/mapping|application::dto domain::*)
+crates/application/src/mapping/r1.rs:3: std::os(許可表の行 application/src/mapping|application::dto domain::*)
+crates/application/src/mapping/r1.rs:4: serde(許可表の行 application/src/mapping|application::dto domain::*)
+crates/application/src/usecase/r1.rs:1: std::fs(許可表の行 application/src/usecase|application::port application::mapping application::dto application::error domain::*)
+crates/application/src/usecase/r1.rs:2: std::process(許可表の行 application/src/usecase|application::port application::mapping application::dto application::error domain::*)
+crates/application/src/usecase/r1.rs:3: std::os(許可表の行 application/src/usecase|application::port application::mapping application::dto application::error domain::*)
+crates/application/src/usecase/r1.rs:4: serde(許可表の行 application/src/usecase|application::port application::mapping application::dto application::error domain::*)
+crates/application/src/error/r1.rs:1: std::fs(許可表の行 application/src/error|application::dto)
+crates/application/src/error/r1.rs:2: std::process(許可表の行 application/src/error|application::dto)
+crates/application/src/error/r1.rs:3: std::os(許可表の行 application/src/error|application::dto)
+crates/application/src/error/r1.rs:4: serde(許可表の行 application/src/error|application::dto)
+crates/infrastructure/src/lib.rs:1: std::fs(許可表の行 infrastructure/src/lib.rs|)
+crates/infrastructure/src/lib.rs:2: std::process(許可表の行 infrastructure/src/lib.rs|)
+crates/infrastructure/src/lib.rs:3: std::os(許可表の行 infrastructure/src/lib.rs|)
+crates/infrastructure/src/lib.rs:4: serde(許可表の行 infrastructure/src/lib.rs|)
+crates/infrastructure/src/driver/r1.rs:4: serde(許可表の行 infrastructure/src/driver|std::fs std::process std::os)
+crates/infrastructure/src/translation/r1.rs:1: std::fs(許可表の行 infrastructure/src/translation|application::dto)
+crates/infrastructure/src/translation/r1.rs:2: std::process(許可表の行 infrastructure/src/translation|application::dto)
+crates/infrastructure/src/translation/r1.rs:3: std::os(許可表の行 infrastructure/src/translation|application::dto)
+crates/infrastructure/src/translation/r1.rs:4: serde(許可表の行 infrastructure/src/translation|application::dto)
+crates/infrastructure/src/adapter/r1.rs:1: std::fs(許可表の行 infrastructure/src/adapter|infrastructure::driver infrastructure::translation application::port application::dto)
+crates/infrastructure/src/adapter/r1.rs:2: std::process(許可表の行 infrastructure/src/adapter|infrastructure::driver infrastructure::translation application::port application::dto)
+crates/infrastructure/src/adapter/r1.rs:3: std::os(許可表の行 infrastructure/src/adapter|infrastructure::driver infrastructure::translation application::port application::dto)
+crates/infrastructure/src/adapter/r1.rs:4: serde(許可表の行 infrastructure/src/adapter|infrastructure::driver infrastructure::translation application::port application::dto)
+crates/presentation/src/lib.rs:1: std::fs(許可表の行 presentation/src/lib.rs|)
+crates/presentation/src/lib.rs:2: std::process(許可表の行 presentation/src/lib.rs|)
+crates/presentation/src/lib.rs:3: std::os(許可表の行 presentation/src/lib.rs|)
+crates/presentation/src/lib.rs:4: serde(許可表の行 presentation/src/lib.rs|)
+crates/presentation/src/controller/r1.rs:1: std::fs(許可表の行 presentation/src/controller|application::dto)
+crates/presentation/src/controller/r1.rs:2: std::process(許可表の行 presentation/src/controller|application::dto)
+crates/presentation/src/controller/r1.rs:3: std::os(許可表の行 presentation/src/controller|application::dto)
+crates/presentation/src/controller/r1.rs:4: serde(許可表の行 presentation/src/controller|application::dto)
+crates/presentation/src/view_model/r1.rs:1: std::fs(許可表の行 presentation/src/view_model|)
+crates/presentation/src/view_model/r1.rs:2: std::process(許可表の行 presentation/src/view_model|)
+crates/presentation/src/view_model/r1.rs:3: std::os(許可表の行 presentation/src/view_model|)
+crates/presentation/src/view_model/r1.rs:4: serde(許可表の行 presentation/src/view_model|)
+crates/presentation/src/presenter/r1.rs:1: std::fs(許可表の行 presentation/src/presenter|presentation::view_model application::dto application::error)
+crates/presentation/src/presenter/r1.rs:2: std::process(許可表の行 presentation/src/presenter|presentation::view_model application::dto application::error)
+crates/presentation/src/presenter/r1.rs:3: std::os(許可表の行 presentation/src/presenter|presentation::view_model application::dto application::error)
+crates/presentation/src/presenter/r1.rs:4: serde(許可表の行 presentation/src/presenter|presentation::view_model application::dto application::error)
+crates/presentation/src/view/r1.rs:1: std::fs(許可表の行 presentation/src/view|presentation::view_model application::dto)
+crates/presentation/src/view/r1.rs:2: std::process(許可表の行 presentation/src/view|presentation::view_model application::dto)
+crates/presentation/src/view/r1.rs:3: std::os(許可表の行 presentation/src/view|presentation::view_model application::dto)
+crates/presentation/src/view/r1.rs:4: serde(許可表の行 presentation/src/view|presentation::view_model application::dto)
+crates/domain/tests/r1.rs:1: std::fs(許可表の domain/src の行の和集合)
+crates/domain/tests/r1.rs:2: std::process(許可表の domain/src の行の和集合)
+crates/domain/tests/r1.rs:3: std::os(許可表の domain/src の行の和集合)
+crates/domain/tests/r1.rs:4: serde(許可表の domain/src の行の和集合)
+crates/application/tests/r1.rs:1: std::fs(許可表の application/src の行の和集合)
+crates/application/tests/r1.rs:2: std::process(許可表の application/src の行の和集合)
+crates/application/tests/r1.rs:3: std::os(許可表の application/src の行の和集合)
+crates/infrastructure/tests/r1.rs:4: serde(許可表の infrastructure/src の行の和集合)
+crates/presentation/tests/r1.rs:1: std::fs(許可表の presentation/src の行の和集合)
+crates/presentation/tests/r1.rs:2: std::process(許可表の presentation/src の行の和集合)
+crates/presentation/tests/r1.rs:3: std::os(許可表の presentation/src の行の和集合)
+crates/presentation/tests/r1.rs:4: serde(許可表の presentation/src の行の和集合)' \
+  'R2 std::fs・std::process・std::os を許すのは driver の行だけ、serde を許すのは dto の行だけで、tests/ はその crate の src の行の和集合で照らす' run_with_root "$tree"
 
 place_tree_b || exit 1
 place_file crates/application/src/mapping/r1.rs <<'RS' || exit 1
@@ -522,6 +650,12 @@ ln -s ../model.rs "$tree/crates/domain/tests/fixtures/linked.rs" || exit 1
 run_case deny 'crates/domain/tests/fixtures/main.rs: 読めない参照の形(シンボリックリンク)' \
   'L12 tests/fixtures の直下の main.rs のシンボリックリンクは出し、その他の fixtures のリンクは出さない' run_with_root "$tree"
 
+place_tree_b || exit 1
+place_member "$tree/crates/extra" extra || exit 1
+place_file crates/extra/tests/x.rs <<<'use std::fs;' || exit 1
+run_case deny 'extra/tests: 許可表に行が無い場所' \
+  'L13 表に無いメンバーの tests/ は、src の行が 1 つも無いので許可表に行が無い場所' run_with_root "$tree"
+
 # 読めない形
 
 place_tree_b || exit 1
@@ -612,6 +746,15 @@ RS
 run_case deny 'crates/tightrope/src/sink/r1.rs:1: 読めない参照の形(根の別名)
 crates/tightrope/src/sink/r1.rs:2: 読めない参照の形(I/O か serde の再エクスポート)' \
   'U10 相手の列が * の場所でも読めない形は出す' run_with_root "$tree"
+
+place_tree_b || exit 1
+place_file crates/domain/src/entity/r1.rs <<'RS' || exit 1
+use std::{self as s};
+use crate::{self as c};
+RS
+run_case deny 'crates/domain/src/entity/r1.rs:1: 読めない参照の形(根の別名)
+crates/domain/src/entity/r1.rs:2: 読めない参照の形(根の別名)' \
+  'U11 グループの中の self で根に別名を付ける use std::{self as s}; と use crate::{self as c}; は根の別名' run_with_root "$tree"
 
 # 字句を読まないこと
 
@@ -801,6 +944,37 @@ printf "['package']\nname = 'domain'\n\"build\" = 'tests/fixtures/build.rs'\nver
   >"$tree/crates/domain/Cargo.toml" || exit 1
 run_unavailable_case '^folder-deps: .*crates/domain/Cargo\.toml の \[package\] に build = があります' \
   "E27 ['package'] の \"build\" = があれば検査できない" run_with_root "$tree"
+
+place_tree_b || exit 1
+printf "\n[lib]\nname = '''dom'''\n" >>"$tree/crates/domain/Cargo.toml" || exit 1
+run_unavailable_case '^folder-deps: .*crates/domain/Cargo\.toml の \[lib\] の name が 3 重引用符の文字列で読めません' \
+  "E28 [lib] の name が 3 重引用符の '''dom''' なら、読めないとして検査できない" run_with_root "$tree"
+
+place_tree_b || exit 1
+printf '\n[lib]\nname = """dom"""\n' >>"$tree/crates/domain/Cargo.toml" || exit 1
+run_unavailable_case '^folder-deps: .*crates/domain/Cargo\.toml の \[lib\] の name が 3 重引用符の文字列で読めません' \
+  'E29 [lib] の name が 3 重引用符の """dom""" なら、読めないとして検査できない' run_with_root "$tree"
+
+place_tree_b || exit 1
+printf '[package]\nname = """domain"""\nversion = "0.1.0"\nedition = "2024"\n' >"$tree/crates/domain/Cargo.toml" || exit 1
+run_unavailable_case '^folder-deps: .*crates/domain/Cargo\.toml の \[package\] の name が 3 重引用符の文字列で読めません' \
+  'E30 [package] の name が 3 重引用符の """domain""" なら、ディレクトリ名と同じでも読めないとして検査できない' run_with_root "$tree"
+
+place_tree_b || exit 1
+printf "[package]\nname = '''domain'''\nversion = '0.1.0'\nedition = '2024'\n" >"$tree/crates/domain/Cargo.toml" || exit 1
+run_unavailable_case '^folder-deps: .*crates/domain/Cargo\.toml の \[package\] の name が 3 重引用符の文字列で読めません' \
+  "E31 [package] の name が 3 重引用符の '''domain''' なら、ディレクトリ名と同じでも読めないとして検査できない" run_with_root "$tree"
+
+place_tree_b || exit 1
+printf '[package]\nversion = "0.1.0"\nedition = "2024"\n' >"$tree/crates/domain/Cargo.toml" || exit 1
+run_unavailable_case '^folder-deps: .*crates/domain/Cargo\.toml の \[package\] の name がありません' \
+  'E32 [package] の name が無ければ、name が無いことを出して検査できない' run_with_root "$tree"
+
+place_tree_b || exit 1
+failing_symlink_find_prefix="$(failing_symlink_find_path_prefix "$work")" || exit 1
+run_unavailable_case '^folder-deps: .*crates のシンボリックリンクの走査に失敗しました' \
+  'E33 シンボリックリンクを探す find が落ちれば、その走査に失敗したことを出して検査できない' \
+  env PATH="$failing_symlink_find_prefix$PATH" bash "$script" "$tree"
 
 # 見ない形
 

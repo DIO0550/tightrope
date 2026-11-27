@@ -16,6 +16,7 @@
 #   隣の `test-file-path.sh` を読み込めない / <根>/crates がディレクトリでない /
 #   `<根>/crates/*/Cargo.toml` が 1 つも無い / crate のディレクトリ名に `-` がある /
 #   `[package]` の name が無いかディレクトリ名と違う / `[lib]` の name がディレクトリ名と違う /
+#   `[package]` か `[lib]` の name が 3 重引用符の文字列(`"""…"""` / `'''…'''`)で読めない /
 #   crate の Cargo.toml が `[lib]` / `[[bin]]` / `[[test]]` / `[[example]]` / `[[bench]]` に `path =` を、
 #   `[package]` に `build =` を書いている / crate の Cargo.toml が `lib` を見出し(`[lib]`)の外に書いている /
 #   crate の Cargo.toml か根の Cargo.toml に依存の別名(`package =`)がある / 走査(find か awk)に失敗した。
@@ -413,6 +414,8 @@ section_pattern='^[[:space:]]*\[+([^]]*)\]+'
 section_noise='[[:space:]"'"'"']'
 # 表の中の `name = "<名前>"`(キーは引用符で囲んでもよい)。1 つ目の組が名前。
 name_pattern='^[[:space:]]*["'"'"']?name["'"'"']?[[:space:]]*=[[:space:]]*["'"'"']([^"'"'"']*)["'"'"']'
+# 表の中の、値が 3 重引用符の文字列(`"""…"""` / `'''…'''`)の `name =`。`name_pattern` はこの値を空の名前と読む。
+triple_quoted_name_pattern='^[[:space:]]*["'"'"']?name["'"'"']?[[:space:]]*=[[:space:]]*("""|'"'''"')'
 # target の表の中の `path =`。
 path_key_pattern='^[[:space:]]*["'"'"']?path["'"'"']?[[:space:]]*='
 # `[package]` の中の `build =`。
@@ -456,6 +459,22 @@ exit_if_sources_relocated() {
   return 0
 }
 
+# Cargo.toml の 1 行が `[package]` か `[lib]` の name を 3 重引用符の文字列で書いていれば、検査できないとして終える。
+#
+# $1 Cargo.toml のパス
+# $2 その行がある表の名前(空白と引用符を除いたもの。見出しより前なら空)
+# $3 行
+exit_if_name_unreadable() {
+  local manifest="$1" section="$2" line="$3"
+  case "$section" in
+    package | lib) ;;
+    *) return 0 ;;
+  esac
+  [[ "$line" =~ $triple_quoted_name_pattern ]] &&
+    exit_unavailable "$manifest の [$section] の name が 3 重引用符の文字列で読めません"
+  return 0
+}
+
 # crate の Cargo.toml を読み、参照に出る crate 名をそのディレクトリ名とみなせなければ、検査できないとして終える。
 #
 # $1 Cargo.toml のパス
@@ -468,6 +487,7 @@ exit_unless_named_after_directory() {
       continue
     fi
     exit_if_sources_relocated "$manifest" "$section" "$line"
+    exit_if_name_unreadable "$manifest" "$section" "$line"
     [[ "$line" =~ $name_pattern ]] || continue
     case "$section" in
       package) package_name="${BASH_REMATCH[1]}" ;;
