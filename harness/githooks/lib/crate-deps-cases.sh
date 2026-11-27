@@ -230,8 +230,8 @@ printf '[workspace]\nmembers = []\nresolver = "3"\n' >"$workspace/Cargo.toml"
 run_case unavailable '' 'E3 メンバー 0 件なら検査できない' run_with_root "$workspace"
 
 rm -f "$workspace/Cargo.toml" || exit 1
-run_unavailable_case 'cargo metadata が落ちました
-^error:' 'E4 根に Cargo.toml が無ければ、cargo metadata が落ちたことと cargo の error: を標準エラーに出す' \
+run_unavailable_case '^crate-deps: .*cargo metadata が落ちました
+^error:' 'E4 根に Cargo.toml が無ければ、crate-deps: から始めて cargo metadata が落ちたことと、cargo の error: を標準エラーに出す' \
   run_with_root "$workspace"
 
 printf '[workspace\n' >"$workspace/Cargo.toml"

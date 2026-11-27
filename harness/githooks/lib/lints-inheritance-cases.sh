@@ -3,13 +3,13 @@
 # workspace の lints の継承の検査(`lints-inheritance.sh`)の判定表。
 #
 # ケースごとに使い捨ての workspace を組み直し(根は `$work/ws`)、根を引数に渡して、本物の cargo で検査を走らせる。
-# P1〜P4・D1〜D14・E1・E2・E5〜E7 は基準の workspace(中身は `place_inheriting_workspace`)に手を入れて組む。
-# 多くは presentation の Cargo.toml を `replace_presentation` で置き直す。メンバーの manifest を直に書くのは P4・D8・D9・D14
-# だけで、D12 は根の Cargo.toml を書き直して `crates/` の外にメンバーを足す。
-# E3・E4 は根の Cargo.toml だけを置く(E3 は置かない)。1 ケースの判定の綴りと、それをどう照らすかは
+# P1〜P5・D1〜D17・E1・E2・E5〜E7 は基準の workspace(中身は `place_inheriting_workspace`)に手を入れて組む。
+# 多くは presentation の Cargo.toml を `replace_presentation` で置き直す。メンバーの manifest を直に書くのは P4・D8・D9・D14・
+# D16 だけで、D12 は根の Cargo.toml を書き直して `crates/` の外にメンバーを足す。
+# E3・E4・E8 は根の Cargo.toml だけを置く(E3・E8 は置かない)。1 ケースの判定の綴りと、それをどう照らすかは
 # `cases-allowlist.sh` の `decision_of`。期待の違反の行(package の名前)は、このファイルに直に書く。
 # 走らせ方の例外は 2 つ。D13 は根をカレントにして引数なしで呼ぶ(`run_in_root`)。E5 は presentation のディレクトリ名に
-# タブを入れてから呼ぶ。E1〜E7 は、検査できなかった理由が標準エラーに出るかまで照らす
+# タブを入れてから呼ぶ。E1〜E8 は、検査できなかった理由が標準エラーに出るかまで照らす
 # (`cases-allowlist.sh` の `run_unavailable_case`)。
 #
 # 使い方: bash harness/githooks/lib/lints-inheritance-cases.sh
@@ -84,6 +84,10 @@ printf '\n[lints]\nworkspace = true' >>"$presentation/Cargo.toml"
 run_case pass '' 'P4 manifest の末尾に改行が無くても通る' run_with_root "$workspace"
 
 place_inheriting_workspace || exit 1
+replace_presentation '' '  [lints]' $'\tworkspace = true' || exit 1
+run_case pass '' 'P5 [lints] と workspace = true を行頭で字下げして書いても通る' run_with_root "$workspace"
+
+place_inheriting_workspace || exit 1
 replace_presentation || exit 1
 run_case deny 'presentation' 'D1 [lints] を持たないメンバーがあれば、その名前を出して落ちる' run_with_root "$workspace"
 
@@ -148,6 +152,20 @@ printf '%s\r\n' '[package]' 'name = "presentation"' 'version = "0.1.0"' 'edition
 run_case deny 'presentation' 'D14 改行が CRLF の manifest は、cargo が受けても落とす' run_with_root "$workspace"
 
 place_inheriting_workspace || exit 1
+replace_presentation '' '[lints]' '  [package.metadata.x]' 'workspace = true' || exit 1
+run_case deny 'presentation' \
+  'D15 [lints] の後に字下げした別の見出しが来ると、その下の workspace = true は数えない' run_with_root "$workspace"
+
+place_inheriting_workspace || exit 1
+printf '%s\r\n' '[package]' 'name = "presentation"' 'version = "0.1.0"' 'edition = "2024"' '' '[lints] # c' \
+  'workspace = true # c' >"$presentation/Cargo.toml"
+run_case deny 'presentation' 'D16 改行が CRLF なら、行末にコメントがあっても落とす' run_with_root "$workspace"
+
+place_inheriting_workspace || exit 1
+replace_presentation '' '[lints]' $'workspace = true\r' || exit 1
+run_case deny 'presentation' 'D17 workspace = true の行だけ改行が CRLF でも落とす' run_with_root "$workspace"
+
+place_inheriting_workspace || exit 1
 replace_presentation '' '[package.metadata.x]' 's = """' '[lints]' 'workspace = true' '"""' || exit 1
 run_unavailable_case '3 重引用符
 presentation' \
@@ -182,5 +200,10 @@ replace_presentation '' '[lints]' 'clippy = {' '  workspace = true' '}' || exit 
 run_unavailable_case 'cargo metadata が落ちました
 invalid type: boolean' 'E7 複数行のインラインの表の中の workspace = true は、cargo metadata が落ちて検査できない' \
   run_with_root "$workspace"
+
+rm -rf "$workspace" || exit 1
+mkdir -p "$workspace" || exit 1
+run_unavailable_case '^lints-inheritance: .*cargo metadata が落ちました' \
+  'E8 検査できなかった理由は lints-inheritance: から始める' run_with_root "$workspace"
 
 exit "$cases_failed"
