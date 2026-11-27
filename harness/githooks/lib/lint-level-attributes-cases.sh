@@ -149,6 +149,21 @@ crates/a/tests/fixtures/sample.rs:1: #[expect(dead_code)]' \
   'L18 下の階層も見る(build.rs・src の下の段・tests/・tests/fixtures/)' run_with_root "$tree"
 
 place_tree || exit 1
+printf 'id! {\n    #[allow\342\200\217(dead_code)]\n    #[expect\342\200\250(dead_code)]\n    fn f() {}\n}\n' >"$x_rs" || exit 1
+run_case deny "$(printf 'crates/a/src/x.rs:2:     #[allow\342\200\217(dead_code)]\ncrates/a/src/x.rs:3:     #[expect\342\200\250(dead_code)]')" \
+  'L19 rustc が空白とみなす U+200F・U+2028 を語と ( の間に挟んでも落とす' run_with_root "$tree"
+
+place_tree || exit 1
+printf '#[allow  (dead_code)]\nfn f() {}\n' >"$x_rs" || exit 1
+run_case deny 'crates/a/src/x.rs:1: #[allow  (dead_code)]' \
+  'L20 語と ( の間に空白を 2 つ挟んでも落とす' run_with_root "$tree"
+
+place_tree || exit 1
+printf '#[cfg_attr(test,\nallow(dead_code))]\nfn f() {}\n' >"$x_rs" || exit 1
+run_case deny 'crates/a/src/x.rs:2: allow(dead_code))]' \
+  'L21 cfg_attr の中で字下げせずに行頭へ置いた allow(..) を落とす' run_with_root "$tree"
+
+place_tree || exit 1
 printf '#[expect(dead_code)]\nfn f() {}\n' >"$x_rs" || exit 1
 run_case deny 'crates/a/src/x.rs:1: #[expect(dead_code)]' \
   'D1 引数なしで呼ぶと、カレントディレクトリを根として検査する' run_in_root "$tree"
@@ -231,6 +246,21 @@ run_case deny 'crates/a/src/x.rs:1: #[allow(dead_code)]' \
 
 place_tree || exit 1
 run_case pass '' 'P8 属性の無い木なら exit 0 で何も出さない' run_with_root "$tree"
+
+place_tree || exit 1
+cat >"$x_rs" <<'RS' || exit 1
+enum Verdict {
+    Warn(u8),
+}
+use Verdict::Warn;
+fn f() -> Verdict {
+    Warn(1)
+}
+#[allow(dead_code)]
+fn g() {}
+RS
+run_case deny 'crates/a/src/x.rs:8: #[allow(dead_code)]' \
+  'P9 enum のバリアント Warn( は拾わない(語は大文字と小文字を区別する)' run_with_root "$tree"
 
 # 見ない形
 
