@@ -3,7 +3,7 @@
 # コメントの形の検査(`comment-style.sh`)の判定表。
 #
 # ケースごとに使い捨ての根を作ってファイルを置き、検査の終了コードと見出しから pass / deny を読む。
-# 根を渡さないケースは、検査できなかった理由が標準エラーに出るかまで照らす(`cases-allowlist.sh` の
+# 検査できなかったケースは、検査できなかった理由が標準エラーに出るかまで照らす(`cases-allowlist.sh` の
 # `run_unavailable_case`)。
 #
 # 使い方: bash harness/githooks/lib/comment-style-cases.sh
@@ -18,6 +18,7 @@ trap 'rm -rf "$work"' EXIT
 
 source "$here/../../../.claude/hooks/lib/cases-report.sh"
 source "$here/cases-allowlist.sh"
+source "$here/../../../.claude/hooks/lib/cases-fixtures.sh"
 
 heading='^doc 以外のコメントがあります'
 
@@ -69,19 +70,16 @@ report pass "$(verdict_of not-rust a.sh $'# 理由\n// これは Rust ではな�
 report deny "$(verdict_of support-beside-fixtures crate/tests/fixtures/x.rs $'// 解析対象のサンプル\n' crate/tests/support/h.rs $'// 補助\n')" \
   "根より深い階層の fixtures/ と同じ深さの、fixtures/ でないディレクトリは見る"
 
-mkdir -p "$work/failing-bin" "$work/scan-fails"
-printf '#!/bin/sh\necho "awk: cannot open" >&2\nexit 2\n' >"$work/failing-bin/awk"
-chmod +x "$work/failing-bin/awk"
+mkdir -p "$work/scan-fails"
 printf 'fn f() {}\n' >"$work/scan-fails/a.rs"
-scan_output="$(PATH="$work/failing-bin:$PATH" bash "$script" "$work/scan-fails" 2>/dev/null)"
-scan_status=$?
-report broken "$(decide "$scan_output" "$scan_status" "$heading")" \
-  "走査に失敗したら exit 2(違反なしの pass と読まない)"
+failing_awk_prefix="$(failing_awk_path_prefix "$work")" || exit 1
+run_unavailable_case '^comment-style: .+/scan-fails の走査に失敗しました\(終了コード [1-9][0-9]*\)$' \
+  "走査に失敗したら、失敗したことを出して検査できない" \
+  env PATH="$failing_awk_prefix$PATH" bash "$script" "$work/scan-fails"
 
-missing_output="$(bash "$script" "$work/missing" 2>/dev/null)"
-missing_status=$?
-report broken "$(decide "$missing_output" "$missing_status" "$heading")" \
-  "根が無ければ exit 2(pass と読まない)"
+run_unavailable_case '^comment-style: .+/missing はディレクトリではありません$' \
+  "根が無ければ、ディレクトリでないことを出して検査できない" \
+  run_with_root "$work/missing"
 
 # 根を渡さない呼び出し。カレントディレクトリに src と tests を置き、そこへ倒れないことを見る。
 mkdir -p "$work/no-root/src" "$work/no-root/tests"

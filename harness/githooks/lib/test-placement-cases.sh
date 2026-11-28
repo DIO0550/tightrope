@@ -3,10 +3,8 @@
 # テストの置き場所の検査(`test-placement.sh`)の判定表。
 #
 # ケースごとに使い捨ての根を作ってファイルを置き、検査の終了コードと見出しから pass / deny を読む。
-# 検査できなかったケースは、終了コードを 2 と比べる(`decide` は見出しの無い exit 1 も broken と読むので、
-# exit 2 が 1 に退行しても ok に残る)。
-# 根を渡さない・空の根を渡す・根を 2 つ渡すケースは、検査できなかった理由が標準エラーに出るかまで照らす
-# (`cases-allowlist.sh` の `run_unavailable_case`)。
+# 検査できなかったケースは、検査できなかった理由が標準エラーに出るかまで照らす(`cases-allowlist.sh` の
+# `run_unavailable_case`)。
 #
 # 使い方: bash harness/githooks/lib/test-placement-cases.sh
 # 食い違ったケースがあれば exit 1(`ok` だけなら期待どおり)。
@@ -93,19 +91,18 @@ report pass "$(decide "$cdpath_output" "$cdpath_status" "$heading")" \
 # 走査そのものの失敗。
 mkdir -p "$work/scan-fails"
 printf 'pub fn f() {}\n' >"$work/scan-fails/a.rs"
-PATH="$(failing_awk_path_prefix "$work")$PATH" bash "$script" "$work/scan-fails" >/dev/null 2>&1
-scan_status=$?
-report "exit 2" "exit $scan_status" \
-  "走査に失敗したら exit 2(違反なしの pass とも、exit 1 とも読まない)"
+failing_awk_prefix="$(failing_awk_path_prefix "$work")" || exit 1
+run_unavailable_case '^test-placement: .+/scan-fails の走査に失敗しました\(終了コード [1-9][0-9]*\)$' \
+  "走査に失敗したら、失敗したことを出して検査できない" \
+  env PATH="$failing_awk_prefix$PATH" bash "$script" "$work/scan-fails"
 
 # 根そのものが `.../tests` の形。絶対パスで見ると a.rs が許されてしまう。
 report deny "$(verdict_of rooted-in-tests/tests a.rs "$inline_tests")" \
   "根が tests/ の下にあっても、根の中の実装のファイルにあるテストは落とす"
 
-bash "$script" "$work/missing" >/dev/null 2>&1
-missing_status=$?
-report "exit 2" "exit $missing_status" \
-  "根が無ければ exit 2(pass とも、違反を並べた exit 1 とも読まない)"
+run_unavailable_case '^test-placement: .+/missing はディレクトリではありません$' \
+  "根が無ければ、ディレクトリでないことを出して検査できない" \
+  run_with_root "$work/missing"
 
 # 根の数と中身。根を渡さない呼び出しは、カレントディレクトリに src を置き、そこへ倒れないことを見る。
 root_usage_pattern='根に crate の src のディレクトリ\(crates/<crate>/src\)を 1 つ渡してください'
@@ -127,13 +124,17 @@ run_unavailable_case "$two_roots_usage_line" \
   "根を 2 つ渡すと、2 つ目に違反があっても、何を渡すかを言って検査できない" \
   bash "$script" "$work/two-roots/first" "$work/two-roots/second"
 
-# 共有の一覧が読めないとき。検査だけを使い捨ての場所へ写すと、隣に test-file-path.sh が無い。
-mkdir -p "$work/script-alone" "$work/unshared"
-cp "$script" "$work/script-alone/"
+# 共有のファイルが読めないとき。検査と、共有のファイルの片方を使い捨ての場所へ写し、もう片方は隣に置かない。
+mkdir -p "$work/without-test-file-path" "$work/unshared"
+cp "$script" "$here/crate-src-root.sh" "$work/without-test-file-path/"
 printf '%s' "$inline_tests" >"$work/unshared/a.rs"
-bash "$work/script-alone/test-placement.sh" "$work/unshared" >/dev/null 2>&1
-unshared_status=$?
-report "exit 2" "exit $unshared_status" \
-  "共有の test-file-path.sh が読めなければ exit 2(違反なしの pass とも、exit 1 とも読まない)"
+run_unavailable_case '^test-placement: .+/without-test-file-path/test-file-path\.sh を読み込めません$' \
+  "隣の test-file-path.sh を読み込めなければ、そのことを出して検査できない" \
+  bash "$work/without-test-file-path/test-placement.sh" "$work/unshared"
+mkdir -p "$work/without-crate-src-root"
+cp "$script" "$here/test-file-path.sh" "$work/without-crate-src-root/"
+run_unavailable_case '^test-placement: .+/without-crate-src-root/crate-src-root\.sh を読み込めません$' \
+  "隣の crate-src-root.sh を読み込めなければ、そのことを出して検査できない" \
+  bash "$work/without-crate-src-root/test-placement.sh" "$work/unshared"
 
 exit "$cases_failed"
