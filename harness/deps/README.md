@@ -4,7 +4,7 @@
 （`AGENTS.md`「依存の更新は cooldown を通す」）。
 
 ```bash
-bash harness/deps/resolve.sh add <crate> -p <メンバー>   # 根に無い crate は、先に版を根へ手で書く（下の「依存を足す」）
+bash harness/deps/resolve.sh add <crate> -p <メンバー>   # 手順は下の「依存を足す」
 bash harness/deps/resolve.sh update
 bash harness/deps/resolve.sh update -p clap
 ```
@@ -21,8 +21,9 @@ manifest）ので、`-p` が無いと `could not determine which package to modi
 版がメンバーの `[dependencies]` に直接入る。
 
 1. `bash harness/deps/resolve.sh add <crate> -p <メンバー> --dry-run` で、公開から期間を経た版を見る（何も書き換えない）。
-   根に既にある crate なら `Adding <crate> (workspace) to dependencies` と出るので、2 を飛ばして 3 へ
-2. 根の `[workspace.dependencies]` に `<crate> = "<版>"` を手で書く。features もここに書く
+   根に既にある crate なら `Adding <crate> (workspace) to dependencies` と出るので、2 を飛ばして 3 へ。
+   features を増やすときは、根の既存の行の features を書き換える
+2. 根の `[workspace.dependencies]` に、1 の dry-run が出した版で `<crate> = "<版>"` を手で書く。features もここに書く
 3. `bash harness/deps/resolve.sh add <crate> -p <メンバー>` を走らせる
 
 ```bash
@@ -30,10 +31,12 @@ bash harness/deps/resolve.sh add <crate> -p <メンバー> --dry-run   # 1
 bash harness/deps/resolve.sh add <crate> -p <メンバー>             # 3
 ```
 
+2 で書く 1 行は、次のどちらかの形にする。
+
 ```toml
 [workspace.dependencies]
-<crate> = "<版>"                                            # features が既定のまま
-<別の crate> = { version = "<版>", features = ["<名前>"] }  # features を選ぶとき
+<crate> = "<版>"                                             # features が既定のまま
+<crate> = { version = "<版>", features = ["<feature>"] }     # features を選ぶとき
 ```
 
 同じ追加で、次も直す。
@@ -48,12 +51,11 @@ bash harness/deps/resolve.sh add <crate> -p <メンバー>             # 3
 
 手順を外れたときに起きること。
 
-- 根に無い crate で 2 を飛ばすと、版がメンバーの `[dependencies]` に直接入る
 - 根に既にある crate の行を 2 で書き足すと、`Cargo.toml` が TOML の重複キー（`duplicate key`）で読めなくなる
-- 2 に期間内の版を書くと、3 が `is too new` で落ちる（期間を経た版は出ないので、1 の dry-run で見る）。
-  メンバーの行は書かれたまま残り lock は変わらないので、根の版を直して 3 をもう一度走らせる
-- 3 に `--features` を付けると features がメンバーの側（`{ workspace = true, features = [...] }`）に入る。
-  features は 2 で根に書く
+- 2 に期間内の版を書くと、3 が `is too new` で落ち、`help:` に期間を経た版が出る。メンバーの行は書かれたまま
+  残り、lock に無い依存を宣言した状態になるので、他の cargo を挟まずに、根の版を `help:` の版に直して 3 を
+  すぐ走らせ直す（もう一度走らせてもメンバーの行は 1 行のまま）
+- 3 に `--features` を付けると features がメンバーの側（`{ workspace = true, features = [...] }`）に入る
 
 ## なぜ入口を 1 つにするか
 
