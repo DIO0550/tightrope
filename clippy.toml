@@ -1,9 +1,10 @@
 # clippy.toml を持つ crate では、このファイルは読まれない(足し合わされず置き換わる)。
 # I/O を持たない crate(harness/githooks/lib/clippy-config-cases.sh の io_crates に並ばない crates/ の crate)は自分の
-# clippy.toml を持ち、このファイルの設定の写しと、std の stable な std::fs / Path のファイル操作 / std::os::unix::fs /
-# std::process::Command を disallowed-methods / disallowed-types に並べる(並べる項目は clippy-config-cases.sh の
-# probe の表と 1 対 1)。一覧に無い関数は通るので漏れなく並べる。写し漏れ・並べ漏れ・表に無い余分な項目・綴りの誤りは
-# clippy-config-cases.sh が落とす。
+# clippy.toml を持ち、このファイルの設定の写しと、I/O を伴う std の項目(何が I/O かは rules/coding.md「I/O を持って
+# よい場所」、並べる項目は clippy-config-cases.sh の probe の表と 1 対 1)を disallowed-macros / disallowed-methods /
+# disallowed-types に並べる。一覧に無い項目は通るので漏れなく並べる。写し漏れ・並べ漏れ・表に無い余分な項目・綴りの
+# 誤りは clippy-config-cases.sh が落とす。禁止は crate 自身のソースにだけ効き、依存先の crate の中(clap がプロセスの
+# 引数を読み、使い方を書き出す)は見ない。
 
 # Cargo.toml が deny している unwrap / expect を、テストコード内でだけ許可する。
 # 禁止の対象は本番コードのみで、テストは失敗理由が分かるほうが優先される
