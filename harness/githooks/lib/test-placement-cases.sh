@@ -52,6 +52,8 @@ report deny "$(verdict_of bare-test-fn a.rs "$test_fn")" \
   "mod tests を持たずに実装のファイルへ置いた #[test] を落とす"
 report deny "$(verdict_of nested a/b.rs "$inline_tests")" \
   "下の階層の実装のファイルにあるテストも落とす"
+report deny "$(verdict_of deep a/b/c/d/e/f/g/h/i/j/k/l.rs "$inline_tests")" \
+  "深い階層の実装のファイルにあるテストも落とす"
 report deny "$(verdict_of suffix-only a/contests.rs "$test_fn")" \
   "名前が tests.rs で終わるだけのファイルは置き場所に数えない"
 report deny "$(verdict_of suffix-only-dir a/contests/x.rs "$test_fn")" \

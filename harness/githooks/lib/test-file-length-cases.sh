@@ -79,6 +79,8 @@ report "deny a/tests/ordering.rs: 101 行" "$(verdict_of tests-child a/tests/ord
   "tests/ の下のテストの観点のファイルも測る"
 report "deny a/b/tests.rs: 101 行" "$(verdict_of nested a/b/tests.rs 101)" \
   "下の階層の tests.rs も測る"
+report "deny a/b/c/d/e/f/g/h/i/j/tests/x.rs: 101 行" "$(verdict_of deep a/b/c/d/e/f/g/h/i/j/tests/x.rs 101)" \
+  "深い階層のテストのファイルも測る"
 report "deny tests.rs: 101 行" "$(verdict_of crate-root tests.rs 101)" \
   "根の直下の tests.rs も測る"
 report pass "$(verdict_of exact a/tests.rs 100)" \

@@ -52,6 +52,8 @@ report deny "$(verdict_of why-not-in-module-doc a.rs $'//! 語彙。\n//! Why no
   "モジュールの doc の中の Why not（..）: も落とす"
 report deny "$(verdict_of nested a/b.rs $'fn f() {\n    // 理由\n}\n')" \
   "下の階層のファイルも見る"
+report deny "$(verdict_of deep a/b/c/d/e/f/g/h/i/j/k/l.rs $'fn f() {\n    // 理由\n}\n')" \
+  "深い階層のファイルも見る"
 report pass "$(verdict_of doc-only a.rs $'//! 語彙。\n\n/// 距離。\n///\n/// # Errors\n///\n/// 読めないとき。\nfn f() {}\n')" \
   "doc だけのファイルは通す"
 report pass "$(verdict_of url-in-string a.rs $'pub const U: &str = "https://example.com";\n')" \
