@@ -82,6 +82,7 @@ report pass "$(verdict_of cfg-test-then-code a.rs $'#[cfg(test)]\nuse std::fmt;\
 # CDPATH が設定された環境。pre-push と同じく、検査と <根> を相対パスで渡す。
 mkdir -p "$work/cdpath/harness/githooks/lib" "$work/cdpath/src/a"
 cp "$script" "$here/test-file-path.sh" "$work/cdpath/harness/githooks/lib/"
+cp "$here/crate-src-root.sh" "$work/cdpath/harness/githooks/lib/"
 printf '%s' "$out_of_line" >"$work/cdpath/src/a.rs"
 printf '%s' "$test_fn" >"$work/cdpath/src/a/tests.rs"
 cdpath_output="$(cd "$work/cdpath" && CDPATH=. bash harness/githooks/lib/test-placement.sh src)"

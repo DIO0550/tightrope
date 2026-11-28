@@ -5,7 +5,8 @@
 #
 # 使い方: bash harness/githooks/lib/test-placement.sh <根>   (<根> は crate の src のディレクトリ)
 # 置き場所を外れたテストを見出しの下に `<ファイル>:<行>: <行の中身>` で並べて exit 1。
-# 無ければ何も出さずに exit 0。<根> を 1 つだけ渡していない(0 個・2 個以上・空)・<根> がディレクトリでない・走査に失敗した・共有の一覧が読めないときは exit 2。
+# 無ければ何も出さずに exit 0。<根> を 1 つ渡していない(0 個・2 個以上)・<根> が空・<根> がディレクトリでない・
+# 走査に失敗した・共有のファイル(test-file-path.sh・crate-src-root.sh)が読めないときは exit 2。
 #
 # テストを置いてよい場所の許可リストは `test-file-path.sh` が持ち、`test-file-length.sh` と共有する。
 # 一覧に無い置き場所は「外れた」側へ倒れる。
@@ -18,17 +19,9 @@ set -uo pipefail
 
 here="$(CDPATH= cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$here/test-file-path.sh" || exit 2
+. "$here/crate-src-root.sh" || exit 2
 
-root_request='根に crate の src のディレクトリ(crates/<crate>/src)を 1 つ渡してください'
-if [ "$#" -ne 1 ]; then
-  printf 'test-placement: %s（受け取った根の数: %s）\n' "$root_request" "$#" >&2
-  exit 2
-fi
-root="$1"
-if [ -z "$root" ]; then
-  printf 'test-placement: %s（受け取った根: 空）\n' "$root_request" >&2
-  exit 2
-fi
+root="$(crate_src_root_of test-placement "$@")" || exit 2
 if [ ! -d "$root" ]; then
   printf 'test-placement: %s はディレクトリではありません\n' "$root" >&2
   exit 2

@@ -109,6 +109,7 @@ report "deny a/b/tests.rs: 120 行,a/tests.rs: 101 行" "$(verdict_of two a/test
 # CDPATH が設定された環境。pre-push と同じく、検査と <根> を相対パスで渡す。
 mkdir -p "$work/cdpath/harness/githooks/lib" "$work/cdpath/src/a"
 cp "$script" "$here/test-file-path.sh" "$work/cdpath/harness/githooks/lib/"
+cp "$here/crate-src-root.sh" "$work/cdpath/harness/githooks/lib/"
 write_lines "$work/cdpath/src/a/tests.rs" 1
 cdpath_output="$(cd "$work/cdpath" && CDPATH=. bash harness/githooks/lib/test-file-length.sh src)"
 cdpath_status=$?

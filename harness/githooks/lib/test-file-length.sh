@@ -5,7 +5,8 @@
 #
 # 使い方: bash harness/githooks/lib/test-file-length.sh <根>   (<根> は crate の src のディレクトリ)
 # 上限の行数を超えたテストのファイルを見出しの下に `<根>/<相対パス>: <行数> 行` で並べて exit 1。
-# 無ければ何も出さずに exit 0。<根> を 1 つだけ渡していない(0 個・2 個以上・空)・<根> がディレクトリでない・走査に失敗した・共有の一覧が読めないときは exit 2。
+# 無ければ何も出さずに exit 0。<根> を 1 つ渡していない(0 個・2 個以上)・<根> が空・<根> がディレクトリでない・
+# 走査に失敗した・共有のファイル(test-file-path.sh・crate-src-root.sh)が読めないときは exit 2。
 #
 # 測るのは `test-file-path.sh` の一覧に当たる `*.rs`(test-placement.sh と共有)。行数は物理行で数え、
 # 末尾に改行の無い最後の行も 1 行、0 バイトのファイルは 0 行とする。上限は引数・環境変数で変えさせない。
@@ -14,20 +15,12 @@ set -uo pipefail
 
 here="$(CDPATH= cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$here/test-file-path.sh" || exit 2
+. "$here/crate-src-root.sh" || exit 2
 
 # 1 つのテストの観点を読み切れる量。テストの観点の数そのものはレビューが見る。
 max_lines=100
 
-root_request='根に crate の src のディレクトリ(crates/<crate>/src)を 1 つ渡してください'
-if [ "$#" -ne 1 ]; then
-  printf 'test-file-length: %s（受け取った根の数: %s）\n' "$root_request" "$#" >&2
-  exit 2
-fi
-root="$1"
-if [ -z "$root" ]; then
-  printf 'test-file-length: %s（受け取った根: 空）\n' "$root_request" >&2
-  exit 2
-fi
+root="$(crate_src_root_of test-file-length "$@")" || exit 2
 if [ ! -d "$root" ]; then
   printf 'test-file-length: %s はディレクトリではありません\n' "$root" >&2
   exit 2
