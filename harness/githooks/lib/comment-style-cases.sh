@@ -66,6 +66,8 @@ report pass "$(verdict_of nested-fixtures crate/tests/fixtures/x.rs $'// 解析�
   "根より深い階層の fixtures/ の下も見ない"
 report pass "$(verdict_of not-rust a.sh $'# 理由\n// これは Rust ではない\n')" \
   ".rs 以外のファイルは見ない"
+report deny "$(verdict_of support-beside-fixtures crate/tests/fixtures/x.rs $'// 解析対象のサンプル\n' crate/tests/support/h.rs $'// 補助\n')" \
+  "根より深い階層の fixtures/ と同じ深さの、fixtures/ でないディレクトリは見る"
 
 mkdir -p "$work/failing-bin" "$work/scan-fails"
 printf '#!/bin/sh\necho "awk: cannot open" >&2\nexit 2\n' >"$work/failing-bin/awk"
