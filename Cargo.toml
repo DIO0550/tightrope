@@ -19,8 +19,7 @@ expect_used = "deny"
 # mod.rs を落とす。tests/ の下の mod.rs(統合テストの共有モジュール)は clippy が落とさない。
 mod_module_files = "deny"
 
-# 依存は素の `cargo add` / `cargo update` ではなく harness/deps/resolve.sh を通して足す
-# (AGENTS.md「依存の更新は cooldown を通す」)。
+# 依存の足し方は harness/deps/README.md「依存を足す」。
 [workspace.dependencies]
 clap = { version = "4.6.7", features = ["derive"] }
 # features は既定のまま。絞っても外れるのは build script も proc macro も持たない toml_writer だけで、`toml::Table` の `FromStr` は `serde` feature の下にあり serde_core は外せない。
