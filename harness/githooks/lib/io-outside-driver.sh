@@ -18,8 +18,8 @@
 #   clippy の出力をふるい分ける awk か sort が 0 以外で終わった
 #
 # 根をカレントディレクトリにして、次の引数で cargo を走らせる。それぞれが、外から何を渡されても報告が変わらないようにするもの。
-# - `env CARGO_ENCODED_RUSTFLAGS=`: `RUSTFLAGS` / `CARGO_ENCODED_RUSTFLAGS` / `CARGO_BUILD_RUSTFLAGS` /
-#   `.cargo/config.toml` の `build.rustflags` に `--cap-lints allow` や `-A warnings` があっても報告する
+# - `env CARGO_ENCODED_RUSTFLAGS=`: rustflags に `--cap-lints allow` や `-A warnings` があっても報告する(空にすると読まれなく
+#   なる入口と、それでも塞がらない経路は `rust-checks.sh` の冒頭の clippy の段落)
 # - `CLIPPY_CONF_DIR=<根>/crates/domain`: 外から渡された `CLIPPY_CONF_DIR` を上書きし、domain の一覧で照らす
 # - `--locked`: Cargo.lock が無い・合わないときに、lock を作らず書き換えずに落ちる
 # - `-p infrastructure` と `--no-deps`: infrastructure 以外の crate と、infrastructure が path で依存する crate を照らさない

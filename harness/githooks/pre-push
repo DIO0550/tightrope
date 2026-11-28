@@ -60,6 +60,10 @@ run_check "フォルダの依存の許可表の判定表" bash harness/githooks/
 run_check "lint の水準の属性" bash harness/githooks/lib/lint-level-attributes.sh
 run_check "lint の水準の属性の判定表" bash harness/githooks/lib/lint-level-attributes-cases.sh
 
+# cargo の設定の rustflags(harness/githooks/lib/cargo-config-rustflags.sh)と、その判定表。
+run_check "cargo の設定の rustflags" bash harness/githooks/lib/cargo-config-rustflags.sh
+run_check "cargo の設定の rustflags の判定表" bash harness/githooks/lib/cargo-config-rustflags-cases.sh
+
 # 根を受け取る検査に渡す根の判定表(対象の検査は check-roots-cases.sh の冒頭)。
 run_check "検査に渡す根の判定表" bash harness/githooks/lib/check-roots-cases.sh
 
