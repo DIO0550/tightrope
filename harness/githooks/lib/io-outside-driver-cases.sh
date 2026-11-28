@@ -13,6 +13,7 @@
 # 標準エラーに出るかまで照らす(`cases-allowlist.sh` の `run_unavailable_case`)。M1〜M4 は見ない形で、M1〜M3 は
 # 何も報告されない(`miss`)こと、M4 は対照の 1 行だけが報告されることを照らす。
 # 走らせ方の例外は 4 つ。E6 は別のディレクトリから相対の根を渡し、U4 は根を 2 つ、U5 は空の根、U7 は無い根を渡す。
+# 上の 4 つのほかに、E10 も別のディレクトリから相対の根を渡すが、`./` を付けず、根の親を `CDPATH` に入れて渡す。
 # U8 は `run_with_case_root` に渡す PATH で、検査を走らせるコマンドにだけ失敗する awk(`failing_awk_path_prefix`)を先に置く。
 # C1 は検査を走らせず、`io-outside-driver.sh` と `folder-deps.sh` の本文のヒアドキュメントを読んで照らす。
 #
@@ -255,6 +256,10 @@ run_case deny "$control_line" 'E5 CARGO_TERM_COLOR=always でも報告の行が�
 place_case_tree E6 && place_control E6 || exit 1
 run_case deny "$control_line" 'E6 別のディレクトリから相対の根(./E6)を渡しても報告する' \
   with_case_target E6 bash -c 'cd "$1" && bash "$2" ./E6' _ "$work" "$script"
+
+place_case_tree E10 && place_control E10 || exit 1
+run_case deny "$control_line" 'E10 CDPATH に親を入れて、./ の無い相対の根(E10)を渡しても報告する' \
+  with_case_target E10 bash -c 'cd "$1" && CDPATH="$1" bash "$2" E10' _ "$work" "$script"
 
 place_case_tree E7 && place_control E7 || exit 1
 run_case deny "$control_line" 'E7 CARGO_ENCODED_RUSTFLAGS に --cap-lints allow があっても報告する' \

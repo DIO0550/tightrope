@@ -58,7 +58,7 @@ exit_unavailable() {
 [ "$#" -le 1 ] || exit_unavailable "根は 1 つだけ渡してください(受け取った数: $#)"
 root_argument="${1-.}"
 [ -n "$root_argument" ] || exit_unavailable "根が空です"
-root="$(cd "$root_argument" 2>/dev/null && pwd -P)" || exit_unavailable "根 $root_argument に移れません"
+root="$(CDPATH= cd -- "$root_argument" 2>/dev/null && pwd -P)" || exit_unavailable "根 $root_argument に移れません"
 
 # infrastructure の中で I/O を持ってよい場所。1 行 1 つで、根からのパス。`/` で終わる行はその下すべて(前方一致)、
 # それ以外はそのファイルだけ(完全一致)。
@@ -82,7 +82,7 @@ clippy_log="$(mktemp)" || exit_unavailable "一時ファイルを作れません
 trap 'rm -f "$clippy_log"' EXIT
 
 status=0
-(cd "$root" && env CARGO_ENCODED_RUSTFLAGS= CLIPPY_CONF_DIR="$config_dir" \
+(CDPATH= cd -- "$root" && env CARGO_ENCODED_RUSTFLAGS= CLIPPY_CONF_DIR="$config_dir" \
   cargo clippy --locked -p infrastructure --no-deps --all-targets --message-format=short --color never -- \
   --cap-lints warn -W warnings -W clippy::disallowed_macros -W clippy::disallowed_methods -W clippy::disallowed_types) \
   >"$clippy_log" 2>&1 || status=$?
