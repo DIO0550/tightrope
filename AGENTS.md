@@ -130,7 +130,7 @@
 `resolve.sh` は nightly が無ければ落ちる。
 
 ```bash
-bash harness/deps/resolve.sh add clap --features derive
+bash harness/deps/resolve.sh add <crate> -p <メンバー>   # 根の [workspace.dependencies] に無い crate は、先に版を手で書く（harness/deps/README.md「依存を足す」）
 bash harness/deps/resolve.sh update
 ```
 
