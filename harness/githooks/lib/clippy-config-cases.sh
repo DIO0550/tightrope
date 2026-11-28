@@ -5,15 +5,14 @@
 # 実物の設定ファイル(根の Cargo.toml / Cargo.lock、根と各 crate の clippy.toml / .clippy.toml、各 crate の
 # Cargo.toml)だけを写した workspace を使い捨ての置き場に組み、crate のディレクトリをカレントにして
 # `rust-checks.sh clippy` を crate ごとに 2 回走らせる。各 crate の src/lib.rs は空で、実物のソースは写さない。
-#   probe の run  下の probe の表の項目を 1 つずつ使う src/probe_<nn>.rs と、src/inner/mod.rs と、テストの外で
-#                 unwrap() / expect() を使う src/panics_outside_tests.rs を置く。
+#   probe の run  place_probe_sources が置くソース(置くファイルの一覧はその doc)で走らせる。
 #                 1 回の run に禁止を同居させるので終了コードでは照らさず、clippy の出力の見出し(`-->` が指す
-#                 ファイルと、その直前の error / warning の行の組)で照らす(T1・T2・T4・T5・T7・T11・T12)
+#                 ファイルと、その直前の error / warning の行の組)で照らす(T1・T2・T4・T5・T7・T11・T12・T13)
 #   例外の run    テストの中の unwrap() / expect() と、統合テストが `mod common;` で使う tests/common/mod.rs を
 #                 置き、終了コードで照らす(T6)。食い違ったら、その run の error の行も出す
 # T3 と T10 は実物の crate で clippy が読む設定ファイルを、T3 は根の clippy.toml の設定行と、T10 は
-# disallowed-methods / disallowed-types に並ぶ項目を probe の表の項目と照らす。T1 が probe の表の項目の欠けを、
-# T10 が余分と欠けの両方を落とす。T8 は実物の crates/ を照らす。T9 は probe の表のケースが走ったかを見る。
+# disallowed-macros / disallowed-methods / disallowed-types に並ぶ項目を probe の表の項目と照らす。T1 が probe の表の
+# 項目の欠けを、T10 が余分と欠けの両方を落とす。T8 は実物の crates/ を照らす。T9 は probe の表のケースが走ったかを見る。
 #
 # crate の一覧は実物の crates/*/Cargo.toml から 1 回だけ作り、workspace を置くのにも、run とケースを crate ごとに
 # 回すのにも使う。
@@ -52,6 +51,10 @@ done
 
 # clippy が読む設定ファイルの名前。両方あれば clippy は先の名前を読む。
 config_names=(.clippy.toml clippy.toml)
+
+# 禁止した項目(disallowed-macros / disallowed-methods / disallowed-types)の使用を報告する見出しの始まり。
+# rust-checks.sh は clippy を `-D warnings` で走らせるので、見出しは `error: ` で始まる。
+disallowed_heading_start='error: use of a disallowed '
 
 # probe の表。1 行 1 項目で `<禁止する項目>|<それを使う関数 1 行>`。
 probe_items=()
@@ -105,6 +108,56 @@ std::fs::Permissions|pub fn probe(_: std::fs::Permissions) {}
 std::fs::FileTimes|pub fn probe() -> std::fs::FileTimes { std::fs::FileTimes::new() }
 std::fs::TryLockError|pub fn probe(_: std::fs::TryLockError) {}
 std::process::Command|pub fn probe() -> bool { std::process::Command::new("git").status().is_ok() }
+std::print|pub fn probe() { print!("probe") }
+std::println|pub fn probe() { println!("probe") }
+std::eprint|pub fn probe() { eprint!("probe") }
+std::eprintln|pub fn probe() { eprintln!("probe") }
+std::dbg|pub fn probe() -> i32 { dbg!(1) }
+std::io::stdin|pub fn probe() -> bool { std::io::stdin().lines().next().is_some() }
+std::io::stdout|pub fn probe() -> std::io::Result<()> { std::io::Write::flush(&mut std::io::stdout()) }
+std::io::stderr|pub fn probe() -> std::io::Result<()> { std::io::Write::flush(&mut std::io::stderr()) }
+std::io::IsTerminal::is_terminal|pub fn probe(fd: std::os::fd::BorrowedFd<'_>) -> bool { use std::io::*; fd.is_terminal() }
+std::env::current_dir|pub fn probe() -> bool { std::env::current_dir().is_ok() }
+std::env::set_current_dir|pub fn probe() -> std::io::Result<()> { std::env::set_current_dir("probe") }
+std::env::vars|pub fn probe() -> usize { std::env::vars().count() }
+std::env::vars_os|pub fn probe() -> usize { std::env::vars_os().count() }
+std::env::var|pub fn probe() -> bool { std::env::var("probe").is_ok() }
+std::env::var_os|pub fn probe() -> bool { std::env::var_os("probe").is_some() }
+std::env::set_var|pub fn probe() { let _ = std::env::set_var::<&str, &str>; }
+std::env::remove_var|pub fn probe() { let _ = std::env::remove_var::<&str>; }
+std::env::split_paths|pub fn probe() -> usize { std::env::split_paths("a:b").count() }
+std::env::join_paths|pub fn probe() -> bool { std::env::join_paths(["a", "b"]).is_ok() }
+std::env::home_dir|pub fn probe() -> bool { std::env::home_dir().is_some() }
+std::env::temp_dir|pub fn probe() -> std::path::PathBuf { std::env::temp_dir() }
+std::env::current_exe|pub fn probe() -> bool { std::env::current_exe().is_ok() }
+std::env::args|pub fn probe() -> usize { std::env::args().count() }
+std::env::args_os|pub fn probe() -> usize { std::env::args_os().count() }
+std::net::ToSocketAddrs::to_socket_addrs|pub fn probe() -> bool { use std::net::*; "localhost:80".to_socket_addrs().is_ok() }
+std::io::Stdin|pub fn probe(_: std::io::Stdin) {}
+std::io::StdinLock|pub fn probe(_: std::io::StdinLock<'_>) {}
+std::io::Stdout|pub fn probe(_: std::io::Stdout) {}
+std::io::StdoutLock|pub fn probe(_: std::io::StdoutLock<'_>) {}
+std::io::Stderr|pub fn probe(_: std::io::Stderr) {}
+std::io::StderrLock|pub fn probe(_: std::io::StderrLock<'_>) {}
+std::io::IsTerminal|pub fn probe<T: std::io::IsTerminal>(_: &T) {}
+std::env::Vars|pub fn probe(_: std::env::Vars) {}
+std::env::VarsOs|pub fn probe(_: std::env::VarsOs) {}
+std::env::VarError|pub fn probe(_: std::env::VarError) {}
+std::env::SplitPaths|pub fn probe(_: std::env::SplitPaths<'_>) {}
+std::env::JoinPathsError|pub fn probe(_: std::env::JoinPathsError) {}
+std::env::Args|pub fn probe(_: std::env::Args) {}
+std::env::ArgsOs|pub fn probe(_: std::env::ArgsOs) {}
+std::net::TcpStream|pub fn probe() -> bool { std::net::TcpStream::connect("127.0.0.1:9").is_ok() }
+std::net::TcpListener|pub fn probe() -> bool { std::net::TcpListener::bind("127.0.0.1:0").is_ok() }
+std::net::Incoming|pub fn probe(_: std::net::Incoming<'_>) {}
+std::net::UdpSocket|pub fn probe() -> bool { std::net::UdpSocket::bind("127.0.0.1:0").is_ok() }
+std::net::Shutdown|pub fn probe(_: std::net::Shutdown) {}
+std::net::ToSocketAddrs|pub fn probe<T: std::net::ToSocketAddrs>(_: T) {}
+std::os::unix::net::UnixStream|pub fn probe() -> bool { std::os::unix::net::UnixStream::connect("probe").is_ok() }
+std::os::unix::net::UnixListener|pub fn probe() -> bool { std::os::unix::net::UnixListener::bind("probe").is_ok() }
+std::os::unix::net::UnixDatagram|pub fn probe() -> bool { std::os::unix::net::UnixDatagram::unbound().is_ok() }
+std::os::unix::net::Incoming|pub fn probe(_: std::os::unix::net::Incoming<'_>) {}
+std::os::unix::net::SocketAddr|pub fn probe(_: std::os::unix::net::SocketAddr) {}
 PROBES
 
 # crate が I/O を持ってよい側(io_crates)に入っているか。
@@ -155,7 +208,8 @@ probe_module_of() {
 }
 
 # probe の run のソースを置く。probe の表の項目を 1 つずつ src/probe_<nn>.rs に置き、src/inner/mod.rs と
-# src/panics_outside_tests.rs(`#[cfg(test)]` の外の関数で unwrap() / expect() を使う)と合わせて src/lib.rs から読む。
+# src/panics_outside_tests.rs(`#[cfg(test)]` の外の関数で unwrap() / expect() を使う)と src/io_free_std_items.rs
+# (I/O を伴わない std の項目と、`#[cfg(test)]` の外の関数で unwrap() を使う)と合わせて src/lib.rs から読む。
 #
 # $1 crate のディレクトリ
 place_probe_sources() {
@@ -179,6 +233,35 @@ pub fn expected() -> i32 {
 }
 EOF
   printf 'pub mod panics_outside_tests;\n' >>"$crate_dir/src/lib.rs"
+  cat >"$crate_dir/src/io_free_std_items.rs" <<'EOF'
+use std::io::Write as _;
+
+pub fn written() -> std::io::Result<Vec<u8>> {
+    let mut out = Vec::new();
+    out.write_all(b"x")?;
+    writeln!(out, "y")?;
+    Ok(out)
+}
+
+pub fn read() -> std::io::Result<String> {
+    let mut text = String::new();
+    std::io::Read::read_to_string(&mut std::io::Cursor::new(b"x"), &mut text)?;
+    Ok(text)
+}
+
+pub fn os() -> &'static str {
+    std::env::consts::OS
+}
+
+pub fn localhost() -> std::net::Ipv4Addr {
+    std::net::Ipv4Addr::LOCALHOST
+}
+
+pub fn unwrapped() -> i32 {
+    "1".parse::<i32>().unwrap()
+}
+EOF
+  printf 'pub mod io_free_std_items;\n' >>"$crate_dir/src/lib.rs"
 }
 
 # 例外の run のソースを置く。src/lib.rs のテストの中で unwrap() / expect() を使い、統合テスト tests/probe.rs が
@@ -265,17 +348,17 @@ has_heading() {
   ' "$1"
 }
 
-# probe のファイルを指す見出しに、その項目の名前で禁止を報告するもの(``use of a disallowed (method|type) `<項目>` ``)が
-# あれば `deny`、無ければ `pass` を判定として出す。1 つの probe のファイルに別の項目の見出しが混ざることがあるので、
-# 件数ではなく項目の名前で照らす。
+# probe のファイルを指す見出しに、その項目の名前で禁止を報告するもの
+# (disallowed_heading_start に続けて ``(macro|method|type) `<項目>` ``)があれば `deny`、無ければ `pass` を判定として出す。
+# 1 つの probe のファイルに別の項目の見出しが混ざることがあるので、件数ではなく項目の名前で照らす。
 #
 # $1 見出しの一覧を書いたファイル
 # $2 probe のファイル(workspace の根からの相対パス)
 # $3 禁止する項目
 probe_decision_of() {
   local kind
-  for kind in method type; do
-    has_heading "$1" "$2" "error: use of a disallowed $kind \`$3\`" || continue
+  for kind in macro method type; do
+    has_heading "$1" "$2" "$disallowed_heading_start$kind \`$3\`" || continue
     echo deny
     return 0
   done
@@ -313,11 +396,11 @@ config_heading_count_of() {
   awk -F '\t' '$1 ~ /clippy\.toml$/' "$1" | wc -l
 }
 
-# 見出しの一覧のうち、禁止した項目の使用を報告するもの(`use of a disallowed`)の件数を出す。
+# 見出しの一覧のうち、禁止した項目の使用を報告するもの(disallowed_heading_start で始まる見出し)の件数を出す。
 #
 # $1 見出しの一覧を書いたファイル
 disallowed_heading_count_of() {
-  awk -F '\t' 'index($2, "use of a disallowed ") > 0' "$1" | wc -l
+  awk -F '\t' -v start="$disallowed_heading_start" 'index($2, start) == 1' "$1" | wc -l
 }
 
 # clippy の出力にあるコンパイルエラー(`error[E`)の件数を出す。
@@ -358,15 +441,15 @@ root_settings_state_of() {
   echo 写してある
 }
 
-# 設定ファイルの disallowed-methods / disallowed-types の配列に並ぶ項目を、1 行 1 つ、並べ替えて重複を除いて出す。
-# 項目は文字列のままの path と、`{ path = "<path>", .. }` の path。行を前から、`<キー> = "<文字列>"`・`"<文字列>"`・
-# `]`・`#` の順に読み、`path` 以外のキーの文字列(reason など)は飛ばし、文字列の外の `]` で配列の終わり、`#` で行の
-# 終わりと読む。
+# 設定ファイルの disallowed-macros / disallowed-methods / disallowed-types の配列に並ぶ項目を、1 行 1 つ、並べ替えて
+# 重複を除いて出す。項目は文字列のままの path と、`{ path = "<path>", .. }` の path。行を前から、
+# `<キー> = "<文字列>"`・`"<文字列>"`・`]`・`#` の順に読み、`path` 以外のキーの文字列(reason など)は飛ばし、
+# 文字列の外の `]` で配列の終わり、`#` で行の終わりと読む。
 #
 # $1 設定ファイル
 disallowed_items_of() {
   awk '
-    /^[[:space:]]*disallowed[-_](methods|types)[[:space:]]*=[[:space:]]*\[/ { inside = 1; sub(/^[^[]*\[/, "") }
+    /^[[:space:]]*disallowed[-_](macros|methods|types)[[:space:]]*=[[:space:]]*\[/ { inside = 1; sub(/^[^[]*\[/, "") }
     !inside { next }
     {
       line = $0
@@ -395,8 +478,9 @@ probe_item_set() {
   printf '%s\n' "${probe_items[@]}" | LC_ALL=C sort -u
 }
 
-# 設定ファイルの disallowed-methods / disallowed-types に並ぶ項目と probe の表の項目との食い違いを、probe の表に無い
-# 項目は `余分 <項目>`、設定ファイルに無い項目は `欠け <項目>` の 1 行ずつで出す。食い違いが無ければ何も出さない。
+# 設定ファイルの disallowed-macros / disallowed-methods / disallowed-types に並ぶ項目と probe の表の項目との
+# 食い違いを、probe の表に無い項目は `余分 <項目>`、設定ファイルに無い項目は `欠け <項目>` の 1 行ずつで出す。
+# 食い違いが無ければ何も出さない。
 #
 # $1 設定ファイル
 listing_differences_of() {
@@ -404,8 +488,8 @@ listing_differences_of() {
   LC_ALL=C comm -13 <(disallowed_items_of "$1") <(probe_item_set) | sed 's/^/欠け /'
 }
 
-# crate で clippy が読む設定ファイルの disallowed-methods / disallowed-types に並ぶ項目が、probe の表の項目と
-# 過不足なく同じかを、`一致` / `食い違う` / `設定ファイルが無い` で出す。
+# crate で clippy が読む設定ファイルの disallowed-macros / disallowed-methods / disallowed-types に並ぶ項目が、
+# probe の表の項目と過不足なく同じかを、`一致` / `食い違う` / `設定ファイルが無い` で出す。
 #
 # $1 crate のディレクトリ
 listing_state_of() {
@@ -468,6 +552,11 @@ for index in "${!crate_names[@]}"; do
   if allows_io "$crate"; then
     report なし "$(count_label_of "$(disallowed_heading_count_of "$headings")")" \
       "T7 I/O を持ってよい $crate では、probe の表の項目をすべて使っても禁止の見出しが出ない"
+  else
+    io_free_std_items_file="crates/$crate/src/io_free_std_items.rs"
+    io_free_std_items_decisions="$(heading_decision_of "$headings" "$io_free_std_items_file" 'error: used `unwrap()`') $(heading_decision_of "$headings" "$io_free_std_items_file" "$disallowed_heading_start")"
+    report 'deny pass' "$io_free_std_items_decisions" \
+      "T13 I/O を持たない $crate で、I/O を伴わない std の項目(Vec<u8> への std::io::Write・std::io::Cursor・std::env::consts・std::net::Ipv4Addr)を使っても、同じファイルの unwrap() の見出しだけが出て禁止の見出しは出ない"
   fi
 
   exception_result=pass
@@ -486,7 +575,7 @@ for crate in "${crate_names[@]}"; do
 
   listing_state="$(listing_state_of "$crate_dir")"
   report 一致 "$listing_state" \
-    "T10 I/O を持たない $crate の clippy.toml(または .clippy.toml)の disallowed-methods / disallowed-types が、probe の表の項目と過不足なく同じ"
+    "T10 I/O を持たない $crate の clippy.toml(または .clippy.toml)の disallowed-macros / disallowed-methods / disallowed-types が、probe の表の項目と過不足なく同じ"
   [ "$listing_state" = 食い違う ] || continue
   listing_differences_of "$(read_config_of "$crate_dir")" | sed 's/^/       /'
 done
