@@ -9,10 +9,12 @@
 #   locked / -        標準出力か標準エラーに `--locked was passed to prevent this` が出たか
 #   hint / -          標準エラーに、そのクレートの Cargo.toml を名指しして `harness/deps/resolve.sh update --workspace`
 #                     を案内する行があるか(置き場はリポジトリの根ではないので `--manifest-path` が付く)
-# 例外は 5 つ。G2〜G6 は path 依存を持たないクレートで組む。G1 は置き場の根で(クレートを組まずに)走らせ、終了コードを照らす。
+# 例外は 6 つ。G2〜G6 は path 依存を持たないクレートで組む。G1 は置き場の根で(クレートを組まずに)走らせ、終了コードを照らす。
 # G5 は終了コードと、src/lib.rs が検査の前と同じ中身のまま残ったか(`kept / changed`)を照らす。R8 は path 依存も
 # Cargo.lock も持たないクレートで組む。R9 は手元の cargo の代わりに、cargo 1.85〜1.92 の文言で止まる偽の cargo で走らせる
-# (判定表は手元の toolchain でしか走らないので、旧版の文言は偽の cargo でしか出せない)。
+# (判定表は手元の toolchain でしか走らないので、旧版の文言は偽の cargo でしか出せない)。F1〜F12 は本番コードの
+# `unwrap()` を workspace の lints で deny にしたクレートで、呼び出し側の rustflags の環境変数を外し、ケースの
+# 環境変数か設定ファイルを置いて clippy を走らせ、deny が効いたか(`pass / deny / broken`)を照らす。
 #
 # 使い方: bash harness/githooks/lib/rust-checks-cases.sh
 # 食い違ったケースがあれば exit 1(`ok` だけなら期待どおり)。
@@ -112,7 +114,7 @@ EOF
 crate_with_source_of() {
   local root="$work/$1"
   place_locked_crate "$root/app" app || exit 1
-  printf '%s' "$2" >"$root/app/src/lib.rs"
+  printf '%s' "$2" >"$root/app/src/lib.rs" || exit 1
   echo "$root/app"
 }
 
@@ -208,5 +210,120 @@ mod tests {
 }
 ')" test)" \
   "G6 落ちるテストがあれば test は落ちる"
+
+host="$(rustc -vV | sed -n 's/^host: //p')"
+if [ -z "$host" ]; then
+  echo 'NG   rustc -vV から手元の host の triple を読めなかった(F のケースを走らせずに止める)'
+  exit 1
+fi
+host_rustflags_variable="CARGO_TARGET_$(printf '%s' "$host" | tr 'a-z-' 'A-Z_')_RUSTFLAGS"
+
+# 本番コードの `unwrap()` を workspace の lints で deny にし、src/lib.rs に渡したソースを置いたクレートを、lock を添えて
+# 置き、そのディレクトリを出す。
+#
+# $1 ケースの名前(置き場のディレクトリ名)
+# $2 src/lib.rs の中身
+crate_with_denied_unwrap_of() {
+  local crate
+  crate="$(crate_with_source_of "$1" "$2")" || exit 1
+  printf '\n[workspace.lints.clippy]\nunwrap_used = "deny"\n\n[lints]\nworkspace = true\n' >>"$crate/Cargo.toml" || exit 1
+  echo "$crate"
+}
+
+# `unwrap_used` が `Option` の `unwrap()` に出す診断の見出しの行。行頭の `error:` はソースの抜粋(行番号の欄が付く)には出ない。
+unwrap_diagnostic_pattern='^error: used `unwrap()` on an `Option` value$'
+
+# 呼び出し側から受け継いだ rustflags の環境変数を外し、色の指定を `CARGO_TERM_COLOR=never` に固定し、
+# 渡した環境変数を付けて(渡した値のほうが勝つ)、クレートのディレクトリをカレントにして clippy の検査を走らせ、
+# 判定を出す。
+#   pass    検査が exit 0
+#   deny    検査が落ち、標準エラーに `unwrap_used` の診断の見出しの行(`unwrap_diagnostic_pattern`)がある
+#   broken  それ以外(型エラーなど別の理由で落ちたとき・クレートのディレクトリが無いときを含む)
+#
+# $1 クレートのディレクトリ
+# $2 以降 付ける環境変数(`<名前>=<値>`)
+unwrap_decision_of() {
+  local crate="$1" status=0 denied=no
+  shift
+  if [ ! -d "$crate" ]; then
+    echo broken
+    return 0
+  fi
+  (cd "$crate" && env -u RUSTFLAGS -u CARGO_ENCODED_RUSTFLAGS -u CARGO_BUILD_RUSTFLAGS -u "$host_rustflags_variable" \
+    CARGO_TERM_COLOR=never "$@" bash "$script" clippy) >"$crate/../stdout" 2>"$crate/../stderr" || status=$?
+  if [ "$status" -eq 0 ]; then
+    echo pass
+    return 0
+  fi
+  grep -q "$unwrap_diagnostic_pattern" "$crate/../stderr" && denied=yes
+  if [ "$denied" = yes ]; then
+    echo deny
+    return 0
+  fi
+  echo broken
+}
+
+# 本番コードで `unwrap()` を使うソース。
+unwrap_source='pub fn first(values: &[i32]) -> i32 {
+    *values.first().unwrap()
+}
+'
+
+# `unwrap()` を使わないソース。
+unwrap_free_source='pub fn first(values: &[i32]) -> Option<&i32> {
+    values.first()
+}
+'
+
+f1="$(crate_with_denied_unwrap_of f1 "$unwrap_source")" || exit 1
+report deny "$(unwrap_decision_of "$f1")" \
+  "F1 環境変数も設定ファイルの rustflags も無ければ、deny にした本番コードの unwrap() で clippy が落ちる"
+f2="$(crate_with_denied_unwrap_of f2 "$unwrap_source")" || exit 1
+report deny "$(unwrap_decision_of "$f2" RUSTFLAGS='-A clippy::unwrap_used')" \
+  "F2 RUSTFLAGS='-A clippy::unwrap_used' でも、deny にした unwrap() で clippy が落ちる"
+f3="$(crate_with_denied_unwrap_of f3 "$unwrap_source")" || exit 1
+report deny "$(unwrap_decision_of "$f3" RUSTFLAGS='--cap-lints=warn')" \
+  "F3 RUSTFLAGS='--cap-lints=warn' でも、deny にした unwrap() で clippy が落ちる"
+f4="$(crate_with_denied_unwrap_of f4 "$unwrap_source")" || exit 1
+report deny "$(unwrap_decision_of "$f4" CARGO_ENCODED_RUSTFLAGS='-Aclippy::unwrap_used')" \
+  "F4 CARGO_ENCODED_RUSTFLAGS=-Aclippy::unwrap_used でも、deny にした unwrap() で clippy が落ちる"
+f5="$(crate_with_denied_unwrap_of f5 "$unwrap_source")" || exit 1
+report deny "$(unwrap_decision_of "$f5" CARGO_BUILD_RUSTFLAGS='-A clippy::unwrap_used')" \
+  "F5 CARGO_BUILD_RUSTFLAGS='-A clippy::unwrap_used' でも、deny にした unwrap() で clippy が落ちる"
+f6="$(crate_with_denied_unwrap_of f6 "$unwrap_source")" || exit 1
+report deny "$(unwrap_decision_of "$f6" "$host_rustflags_variable=-A clippy::unwrap_used")" \
+  "F6 CARGO_TARGET_<手元の triple>_RUSTFLAGS='-A clippy::unwrap_used' でも、deny にした unwrap() で clippy が落ちる"
+f7="$(crate_with_denied_unwrap_of f7 "$unwrap_source")" || exit 1
+mkdir -p "$f7/.cargo" || exit 1
+printf '[build]\nrustflags = ["-A", "clippy::unwrap_used"]\n' >"$f7/.cargo/config.toml" || exit 1
+report deny "$(unwrap_decision_of "$f7")" \
+  "F7 .cargo/config.toml の [build] rustflags に -A を書いても、deny にした unwrap() で clippy が落ちる"
+f8="$(crate_with_denied_unwrap_of f8 "$unwrap_source")" || exit 1
+mkdir -p "$f8/.cargo" || exit 1
+printf "[target.'cfg(all())']\nrustflags = [\"--cap-lints\", \"allow\"]\n" >"$f8/.cargo/config.toml" || exit 1
+report deny "$(unwrap_decision_of "$f8")" \
+  "F8 .cargo/config.toml の [target.'cfg(all())'] rustflags に --cap-lints allow を書いても、deny にした unwrap() で clippy が落ちる"
+f9="$(crate_with_denied_unwrap_of f9 "$unwrap_free_source")" || exit 1
+report pass "$(unwrap_decision_of "$f9" RUSTFLAGS='-A clippy::unwrap_used')" \
+  "F9 unwrap() を使わなければ、RUSTFLAGS に -A を渡しても clippy は通る"
+f10="$(crate_with_denied_unwrap_of f10 "$unwrap_source")" || exit 1
+mkdir -p "$f10/.cargo" || exit 1
+printf 'include = ["../extra.toml"]\n' >"$f10/.cargo/config.toml" || exit 1
+printf '[build]\nrustflags = ["-A", "clippy::unwrap_used"]\n' >"$f10/extra.toml" || exit 1
+report deny "$(unwrap_decision_of "$f10")" \
+  "F10 .cargo/config.toml の include が読む先の rustflags に -A を書いても、deny にした unwrap() で clippy が落ちる"
+f11="$(crate_with_denied_unwrap_of f11 "$unwrap_source")" || exit 1
+mkdir -p "$work/f11/.cargo" || exit 1
+printf '[build]\nrustflags = ["-A", "clippy::unwrap_used"]\n' >"$work/f11/.cargo/config.toml" || exit 1
+report deny "$(unwrap_decision_of "$f11")" \
+  "F11 クレートより上の階層の .cargo/config.toml の rustflags に -A を書いても、deny にした unwrap() で clippy が落ちる"
+# 型が合わず、エラーの抜粋に語 `unwrap_used` が出るソース。
+mistyped_source='pub fn lint_name() -> i32 {
+    "unwrap_used"
+}
+'
+f12="$(crate_with_denied_unwrap_of f12 "$mistyped_source")" || exit 1
+report broken "$(unwrap_decision_of "$f12")" \
+  "F12 型エラーで落ちれば、エラーの抜粋に unwrap_used の語があっても deny と数えない"
 
 exit "$cases_failed"
