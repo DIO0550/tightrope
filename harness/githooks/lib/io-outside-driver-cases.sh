@@ -300,6 +300,19 @@ rm "$work/U6/Cargo.lock" || exit 1
 run_unavailable_case $'--locked was passed to prevent this\n^io-outside-driver: clippy が終了コード 101 で終わりました$' \
   'U6 Cargo.lock が無いと検査できない' run_with_case_root U6
 
+# ケースの workspace に Cargo.lock があるかを出す。あれば `present`、無ければ `absent`。
+#
+# $1 ケース名
+lock_state_of() {
+  if [ -e "$work/$1/Cargo.lock" ]; then
+    echo present
+    return 0
+  fi
+  echo absent
+}
+
+report absent "$(lock_state_of U6)" 'U6b U6 の後も Cargo.lock を作っていない'
+
 run_unavailable_case '^io-outside-driver: 根 .*/U7 に移れません$' \
   'U7 存在しない根を渡すと検査できない' bash "$script" "$work/U7"
 

@@ -30,7 +30,7 @@ crate を層に、crate の中を役割フォルダに分ける。責務と crat
 | 縛るもの | 検査 |
 |---|---|
 | crate 間の依存の向き・使ってよい外部 crate | 各 crate の `[dependencies]` と `harness/githooks/lib/crate-deps.sh` の `allowed_dependencies` |
-| I/O を持ってよい crate | `harness/githooks/lib/clippy-config-cases.sh` の `io_crates` と、それ以外の crate の `clippy.toml` |
+| I/O を持ってよい crate・infrastructure の中で I/O を持ってよい場所 | `harness/githooks/lib/clippy-config-cases.sh` の `io_crates` と、それ以外の crate の `clippy.toml`・`harness/githooks/lib/io-outside-driver.sh` の `io_places` |
 | フォルダ間の依存の向き・`std::fs` / `std::process` / `std::os` の名前で書いた I/O と serde を持ってよいフォルダ・`lib.rs` からの参照（`Path` のメソッド・`std::io` / `std::env` / `std::net` は見ない） | `harness/githooks/lib/folder-deps.sh` の `allowed_dependencies` |
 | `mod.rs`（クレート直下の `tests/` の下は落とさない） | 根の `Cargo.toml` の `mod_module_files` |
 

@@ -3,7 +3,8 @@
 # cargo の検査を 1 つ、Cargo.lock の外から依存を解決しない引数で走らせる。commit 前の検査
 # (`harness/githooks/pre-commit`)・push 前の検査(`harness/githooks/pre-push`)・CI の check ジョブ
 # (`.github/workflows/rust.yml`)・編集後のフック(`.claude/hooks/post-edit-rust.sh`)が同じ引数で走るよう、
-# これらの cargo の引数はここにだけ置く。
+# これらの cargo の引数はここにだけ置く。clippy の出力を場所でふるい分ける `io-outside-driver.sh` は、cargo の終了コードと
+# 出力をそのまま返すこのファイルを通せないので、cargo の引数を自分で持つ。
 #
 # 使い方: bash harness/githooks/lib/rust-checks.sh <fmt|clippy|doc|test>
 # カレントディレクトリのクレートで走る。検査ごとの cargo の引数は下の `case` が持つ。
