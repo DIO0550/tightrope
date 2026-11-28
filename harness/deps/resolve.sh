@@ -11,7 +11,7 @@
 # 使い方:
 #   bash harness/deps/resolve.sh update
 #   bash harness/deps/resolve.sh update -p clap
-#   bash harness/deps/resolve.sh add serde
+#   bash harness/deps/resolve.sh add <crate> -p <メンバー>   # 根の [workspace.dependencies] に無い crate は、先に版を手で書く(harness/deps/README.md「依存を足す」)
 #   bash harness/deps/resolve.sh update --manifest-path <別のクレート>/Cargo.toml
 #
 # cargo のオプションはサブコマンドの後ろに書く。渡した引数はそのまま cargo に流すので、

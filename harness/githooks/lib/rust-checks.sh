@@ -12,13 +12,21 @@
 # clippy / doc / test は `--locked` で走る(理由と落ちたときの直し方は harness/deps/README.md「lock の外で解決しない」)。
 # cargo の標準エラーに `--locked was passed to prevent this` があれば、`harness/deps/resolve.sh` で lock に
 # 足りない依存を入れるよう案内する 1 行を標準エラーに足す。
+#
+# clippy は `CARGO_ENCODED_RUSTFLAGS` を空にして走らせる。stable の cargo はこの変数があると(空でも)ほかの
+# rustflags の入口(`RUSTFLAGS`・`CARGO_BUILD_RUSTFLAGS`・`CARGO_TARGET_<triple>_RUSTFLAGS`・設定ファイルの
+# `build.rustflags` / `target.*.rustflags`・`--config`)を読まないので、`-A` / `--cap-lints` で workspace の lints の
+# deny が外れない。手元の rustflags(リンカの指定など)も、clippy の検査の中では効かない。空にしても塞がらない経路も
+# ある(網羅ではない。例: `[env]` の `CLIPPY_ARGS`・`build.rustc-wrapper` / `RUSTC_WRAPPER`)。
+# 素の `cargo clippy` では設定ファイルの rustflags が効くので、リポジトリの中のものは `cargo-config-rustflags.sh` が
+# 落とす。doc / test は rustflags を空にしない。
 
 set -uo pipefail
 
 check="${1:-}"
 case "$check" in
   fmt) command=(cargo fmt --check) ;;
-  clippy) command=(cargo clippy --locked --all-targets -- -D warnings) ;;
+  clippy) command=(env CARGO_ENCODED_RUSTFLAGS= cargo clippy --locked --all-targets -- -D warnings) ;;
   # 公開項目の doc から非公開項目へ intra-doc link を張ると、リンクが解決しない。
   doc) command=(env RUSTDOCFLAGS="-D rustdoc::private_intra_doc_links" cargo doc --locked --no-deps) ;;
   test) command=(cargo test --locked) ;;

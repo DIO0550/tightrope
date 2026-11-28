@@ -5,9 +5,10 @@
 # テストのファイルは、名前がちょうど `tests.rs` のファイルと、`tests/` の下。
 #
 # 使う側: test-placement.sh(テストを置いてよい場所)/ test-file-length.sh(行数を測る場所)/ folder-deps.sh と
-# lint-level-attributes.sh(`test_file_path_awk` を丸ごと連結して渡し、呼ぶのは `relative_path_of` だけ)。
-# どれも source したうえで `awk_rs_files_under <根> <-v の引数> "$test_file_path_awk"'<プログラム>'` で走らせ、
-# ファイルごとに何を見るかだけを書く。
+# lint-level-attributes.sh と cargo-config-rustflags.sh(`test_file_path_awk` を丸ごと連結して渡し、呼ぶのは
+# `relative_path_of` だけ)。どれも source する。cargo-config-rustflags.sh 以外は
+# `awk_rs_files_under <根> <-v の引数> "$test_file_path_awk"'<プログラム>'` で走らせ、ファイルごとに何を見るかだけを書く。
+# cargo-config-rustflags.sh は `*.rs` ではなく `.cargo/config*` を読むので、find を自前で持つ。
 #
 # Why(`is_test_file_path` の 1 つの一覧を test-placement.sh と test-file-length.sh の 2 つの検査で使い回す。
 # `rules/coding.md`「同じ一覧を、安全な倒れ方が違う 2 箇所で使い回さない」から外れる): 一覧から漏れる向きは、

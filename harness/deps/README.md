@@ -4,12 +4,58 @@
 （`AGENTS.md`「依存の更新は cooldown を通す」）。
 
 ```bash
-bash harness/deps/resolve.sh add clap --features derive
+bash harness/deps/resolve.sh add <crate> -p <メンバー>   # 手順は下の「依存を足す」
 bash harness/deps/resolve.sh update
 bash harness/deps/resolve.sh update -p clap
 ```
 
 cooldown の長さは `.cargo/config.toml` の `global-min-publish-age`（14 日）。仕組みと移植元は dryguard。
+
+## 依存を足す
+
+**外部依存の版は根の `[workspace.dependencies]` にだけ書き、メンバーは `<crate>.workspace = true` で受ける。**
+手で書くのは根の 1 行だけで、メンバーの行と `Cargo.lock` は `resolve.sh` に書かせる。
+
+`cargo add` には `[workspace.dependencies]` へ書くオプションが無い。根は `[package]` を持たない（virtual
+manifest）ので、`-p` が無いと `could not determine which package to modify` で落ちる。`-p` だけで走らせると、
+版がメンバーの `[dependencies]` に直接入る。
+
+1. `bash harness/deps/resolve.sh add <crate> -p <メンバー> --dry-run` で、公開から期間を経た版を見る（何も書き換えない）。
+   根に既にある crate なら `Adding <crate> (workspace) to dependencies` と出るので、2 を飛ばして 3 へ。
+   features を増やすときは、根の既存の行の features を書き換える
+2. 根の `[workspace.dependencies]` に、1 の dry-run が出した版で `<crate> = "<版>"` を手で書く。features もここに書く
+3. `bash harness/deps/resolve.sh add <crate> -p <メンバー>` を走らせる
+
+```bash
+bash harness/deps/resolve.sh add <crate> -p <メンバー> --dry-run   # 1
+bash harness/deps/resolve.sh add <crate> -p <メンバー>             # 3
+```
+
+2 で書く 1 行は、次のどちらかの形にする。
+
+```toml
+[workspace.dependencies]
+<crate> = "<版>"                                             # features が既定のまま
+<crate> = { version = "<版>", features = ["<feature>"] }     # features を選ぶとき
+```
+
+同じ追加で、次も直す。
+
+- `harness/githooks/lib/crate-deps.sh` の `allowed_dependencies` で、足したメンバーの行の 3 列目（外部 crate）に
+  crate の名前を足す。足さないと `crate-deps.sh` が `<メンバー>: [dependencies] の <crate>(外部 crate)` を出して
+  exit 1 で落ちる
+- `AGENTS.md`「プロジェクト構成」の外部依存の一覧（その行の「ここへ足す」）に足す
+- 根の `[workspace.dependencies]` に依存の別名（`package =`）を書かない。根の `Cargo.toml` に `package =` の行が
+  あると `harness/githooks/lib/folder-deps.sh` が検査できないとして exit 2 で落ちる（理由の一覧は `folder-deps.sh`
+  の冒頭）。コメントの行の `package =` も拾う
+
+手順を外れたときに起きること。
+
+- 根に既にある crate の行を 2 で書き足すと、`Cargo.toml` が TOML の重複キー（`duplicate key`）で読めなくなる
+- 2 に期間内の版を書くと、3 が `is too new` で落ち、`help:` に期間を経た版が出る。メンバーの行は書かれたまま
+  残り、lock に無い依存を宣言した状態になるので、他の cargo を挟まずに、根の版を `help:` の版に直して 3 を
+  すぐ走らせ直す（もう一度走らせてもメンバーの行は 1 行のまま）
+- 3 に `--features` を付けると features がメンバーの側（`{ workspace = true, features = [...] }`）に入る
 
 ## なぜ入口を 1 つにするか
 

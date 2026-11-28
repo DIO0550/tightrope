@@ -39,7 +39,8 @@
 # - `<根>/crates` の外のファイルと、`.rs` 以外のファイル。`.rs` 以外のファイルを `include!` で読む経路は、
 #   `folder-deps.sh` が `include!` を読めない参照の形として落とす
 # - シンボリックリンク(`find -type f` は辿らない)
-# - 属性以外で lint の水準を変える経路(`Cargo.toml` の `[lints]`・rustc の `-A` / `-W` を渡す `RUSTFLAGS` など)
+# - 属性以外で lint の水準を変える経路(`Cargo.toml` の `[lints]`・rustc の `-A` / `-W` を渡す `RUSTFLAGS` など)。
+#   rustflags は rust-checks.sh と cargo-config-rustflags.sh が扱う
 
 set -uo pipefail
 
