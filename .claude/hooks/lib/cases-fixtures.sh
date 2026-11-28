@@ -4,7 +4,7 @@
 # 失敗する awk・本体が同じテストヘルパーを渡されたパスへ置くものと、サブエージェントの中の呼び出しの入力を組むもの、
 # 使い捨ての git リポジトリを外の git の環境から切り離して入るもの、偽の sparse index に版を置くもの、
 # 公開からの期間の設定ファイルを置いて検出器へ渡すもの、cargo を走らせる使い捨てのクレートを置くもの、
-# workspace のメンバーの crate を置くもの。
+# workspace のメンバーの crate を置くもの、workspace に Cargo.lock を置くもの。
 #
 # このファイルを使う側の一覧は `.claude/hooks/README.md`「配線」の `lib/cases-fixtures.sh` の行が持つ。
 #
@@ -167,6 +167,13 @@ place_locked_crate() {
   mkdir -p "$1/src" || return 1
   printf '[package]\nname = "%s"\nversion = "0.1.0"\nedition = "2024"\n\n[workspace]\n' "${2:-probe}" >"$1/Cargo.toml"
   : >"$1/src/lib.rs"
+  place_lockfile "$1"
+}
+
+# workspace の根に、ネットワークを使わずに Cargo.lock を作る(あれば作り直す)。依存が path だけなら解決に index は要らない。
+#
+# $1 workspace の根のディレクトリ(単独のクレートならそのディレクトリ)
+place_lockfile() {
   (cd "$1" && cargo generate-lockfile --offline --quiet)
 }
 
