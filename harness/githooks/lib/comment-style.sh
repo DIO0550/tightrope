@@ -2,9 +2,9 @@
 #
 # Rust のコメントが doc だけになっているかの検査(`rules/coding.md`「コメントは doc だけにする」)。
 #
-# 使い方: bash harness/githooks/lib/comment-style.sh [<根>...]   (<根> の既定は src と、あれば tests)
+# 使い方: bash harness/githooks/lib/comment-style.sh <根>...
 # 外れた行を見出しの下に `<ファイル>:<行>: <行の中身>` で並べて exit 1。
-# 無ければ何も出さずに exit 0。<根> がディレクトリでない・走査に失敗したときは exit 2。
+# 無ければ何も出さずに exit 0。<根> を 1 つも渡さない・<根> がディレクトリでない・走査に失敗したときは exit 2。
 #
 # 拾うのは 2 つ。行頭(字下げは除く)の通常のコメント `//`(`///` と `//!` は除く)と、
 # `Why:` / `Why not:` / `Why not（..）:` で始まる doc の行。
@@ -13,10 +13,8 @@
 set -uo pipefail
 
 if [ "$#" -eq 0 ]; then
-  set -- src
-  if [ -d tests ]; then
-    set -- src tests
-  fi
+  printf 'comment-style: 根に検査するディレクトリ(crates など)を 1 つ以上渡してください（受け取った根の数: 0）\n' >&2
+  exit 2
 fi
 
 for root in "$@"; do

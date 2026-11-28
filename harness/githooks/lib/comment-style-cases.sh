@@ -3,6 +3,8 @@
 # コメントの形の検査(`comment-style.sh`)の判定表。
 #
 # ケースごとに使い捨ての根を作ってファイルを置き、検査の終了コードと見出しから pass / deny を読む。
+# 根を渡さないケースは、検査できなかった理由が標準エラーに出るかまで照らす(`cases-allowlist.sh` の
+# `run_unavailable_case`)。
 #
 # 使い方: bash harness/githooks/lib/comment-style-cases.sh
 # 食い違ったケースがあれば exit 1(`ok` だけなら期待どおり)。
@@ -10,11 +12,12 @@
 set -uo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-detector="$here/comment-style.sh"
+script="$here/comment-style.sh"
 work="$(mktemp -d)" || exit 1
 trap 'rm -rf "$work"' EXIT
 
 source "$here/../../../.claude/hooks/lib/cases-report.sh"
+source "$here/cases-allowlist.sh"
 
 heading='^doc 以外のコメントがあります'
 
@@ -32,7 +35,7 @@ verdict_of() {
     shift 2
   done
   local output status
-  output="$(bash "$detector" "$root")"
+  output="$(bash "$script" "$root")"
   status=$?
   decide "$output" "$status" "$heading"
 }
@@ -49,6 +52,8 @@ report deny "$(verdict_of why-not-in-module-doc a.rs $'//! 語彙。\n//! Why no
   "モジュールの doc の中の Why not（..）: も落とす"
 report deny "$(verdict_of nested a/b.rs $'fn f() {\n    // 理由\n}\n')" \
   "下の階層のファイルも見る"
+report deny "$(verdict_of deep a/b/c/d/e/f/g/h/i/j/k/l.rs $'fn f() {\n    // 理由\n}\n')" \
+  "深い階層のファイルも見る"
 report pass "$(verdict_of doc-only a.rs $'//! 語彙。\n\n/// 距離。\n///\n/// # Errors\n///\n/// 読めないとき。\nfn f() {}\n')" \
   "doc だけのファイルは通す"
 report pass "$(verdict_of url-in-string a.rs $'pub const U: &str = "https://example.com";\n')" \
@@ -66,14 +71,23 @@ mkdir -p "$work/failing-bin" "$work/scan-fails"
 printf '#!/bin/sh\necho "awk: cannot open" >&2\nexit 2\n' >"$work/failing-bin/awk"
 chmod +x "$work/failing-bin/awk"
 printf 'fn f() {}\n' >"$work/scan-fails/a.rs"
-scan_output="$(PATH="$work/failing-bin:$PATH" bash "$detector" "$work/scan-fails" 2>/dev/null)"
+scan_output="$(PATH="$work/failing-bin:$PATH" bash "$script" "$work/scan-fails" 2>/dev/null)"
 scan_status=$?
 report broken "$(decide "$scan_output" "$scan_status" "$heading")" \
   "走査に失敗したら exit 2(違反なしの pass と読まない)"
 
-missing_output="$(bash "$detector" "$work/missing" 2>/dev/null)"
+missing_output="$(bash "$script" "$work/missing" 2>/dev/null)"
 missing_status=$?
 report broken "$(decide "$missing_output" "$missing_status" "$heading")" \
   "根が無ければ exit 2(pass と読まない)"
+
+# 根を渡さない呼び出し。カレントディレクトリに src と tests を置き、そこへ倒れないことを見る。
+mkdir -p "$work/no-root/src" "$work/no-root/tests"
+printf 'fn f() {}\n' >"$work/no-root/src/a.rs"
+printf 'fn g() {}\n' >"$work/no-root/tests/b.rs"
+no_root_usage_line='^comment-style: 根に検査するディレクトリ\(crates など\)を 1 つ以上渡してください（受け取った根の数: 0）$'
+run_unavailable_case "$no_root_usage_line" \
+  "根を渡さなければ、カレントディレクトリに src と tests があっても、何を渡すかを言って検査できない" \
+  run_in_root "$work/no-root"
 
 exit "$cases_failed"
