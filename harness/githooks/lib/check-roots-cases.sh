@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# pre-push が行数・置き場所・コメント・フォルダの依存・lint の水準の属性の検査に渡す根の判定表。
+# pre-push が行数・置き場所・コメント・フォルダの依存・lint の水準の属性・cargo の設定の rustflags の検査に渡す根の判定表。
 #
 # 本物の `pre-push` と `harness/githooks/lib/*.sh` を使い捨てのリポジトリへ写し、集計の `check-tally.sh`
 # だけを、検査を走らせずに名前とコマンドをタブ区切りで 1 行に書き出す偽物に差し替えて流す。根を決める
@@ -61,6 +61,8 @@ mkdir -p "$repo/crates/a/src/m" "$repo/crates/c/tests/fixtures" || exit 1
 printf '// x\n#[allow(dead_code)]\n' >"$repo/crates/a/src/m/x.rs"
 printf '// y\n#[allow(dead_code)]\n' >"$repo/crates/c/tests/cli.rs"
 printf '// sample\n#[allow(dead_code)]\n' >"$repo/crates/c/tests/fixtures/sample.rs"
+mkdir -p "$repo/.cargo" || exit 1
+printf '[build]\nrustflags = ["-A", "warnings"]\n' >"$repo/.cargo/config.toml"
 
 enter_repo "$repo"
 written="$(bash harness/githooks/pre-push)"
@@ -128,6 +130,7 @@ placement_script=harness/githooks/lib/test-placement.sh
 comment_script=harness/githooks/lib/comment-style.sh
 folder_script=harness/githooks/lib/folder-deps.sh
 lint_level_script=harness/githooks/lib/lint-level-attributes.sh
+cargo_config_script=harness/githooks/lib/cargo-config-rustflags.sh
 
 report "$(joined_sorted "$(per_crate_checks_of テストのファイルの行数 "$length_script")")" \
   "$(joined_sorted "$(checks_of "$length_script" | to_report_form)")" \
@@ -158,6 +161,15 @@ report 1 "$(joined_sorted "$(exit_statuses_of "$comment_script")")" \
   "pre-push の呼び方で、違反のある木ではコメントの検査が exit 1 で終わる"
 report 1 "$(joined_sorted "$(exit_statuses_of "$lint_level_script")")" \
   "pre-push の呼び方で、違反のある木では lint の水準の属性の検査が exit 1 で終わる"
+
+report "cargo の設定の rustflags|bash $cargo_config_script" \
+  "$(checks_of "$cargo_config_script" | to_report_form)" \
+  "cargo の設定の rustflags の検査は根を渡さずに 1 回だけ走る"
+report ".cargo/config.toml:2" \
+  "$(joined_sorted "$(reported_locations_of "$cargo_config_script")")" \
+  "pre-push の呼び方で、根の .cargo/config.toml の rustflags が報告される"
+report 1 "$(joined_sorted "$(exit_statuses_of "$cargo_config_script")")" \
+  "pre-push の呼び方で、違反のある木では cargo の設定の rustflags の検査が exit 1 で終わる"
 
 mkdir -p "$repo/crates/c/tests/support" || exit 1
 printf '// helper\n' >"$repo/crates/c/tests/support/helper.rs"
