@@ -112,6 +112,17 @@ reported_locations_of() {
   done < <(checks_of "$1") | sed -nE 's/^([^:]+:[0-9]+): .*$/\1/p'
 }
 
+# 書き出した行のうち、走らせるスクリプトが $1 のものを走らせ、終了コードを 1 行ずつ出す。
+#
+# $1 走らせるスクリプト(リポジトリのルートからのパス)
+exit_statuses_of() {
+  local fields
+  while IFS=$'\t' read -r -a fields; do
+    "${fields[@]:1}" >/dev/null
+    echo "$?"
+  done < <(checks_of "$1")
+}
+
 length_script=harness/githooks/lib/test-file-length.sh
 placement_script=harness/githooks/lib/test-placement.sh
 comment_script=harness/githooks/lib/comment-style.sh
@@ -142,5 +153,17 @@ report "lint の水準の属性|bash $lint_level_script" \
 report "crates/a/src/m/x.rs:2,crates/c/tests/cli.rs:2,crates/c/tests/fixtures/sample.rs:2" \
   "$(joined_sorted "$(reported_locations_of "$lint_level_script")")" \
   "pre-push の呼び方で、crates/*/src・crates/*/tests・crate の tests/fixtures/ の lint の水準の属性が報告される"
+
+report 1 "$(joined_sorted "$(exit_statuses_of "$comment_script")")" \
+  "pre-push の呼び方で、違反のある木ではコメントの検査が exit 1 で終わる"
+report 1 "$(joined_sorted "$(exit_statuses_of "$lint_level_script")")" \
+  "pre-push の呼び方で、違反のある木では lint の水準の属性の検査が exit 1 で終わる"
+
+mkdir -p "$repo/crates/c/tests/support" || exit 1
+printf '// helper\n' >"$repo/crates/c/tests/support/helper.rs"
+report "crates/a/src/m/x.rs:1,crates/c/tests/cli.rs:1,crates/c/tests/support/helper.rs:1" \
+  "$(joined_sorted "$(reported_locations_of "$comment_script")")" \
+  "コメントの検査に渡した根では、crate の tests/ の下の fixtures/ と同じ深さにある support/ の // も報告される"
+rm -r "$repo/crates/c/tests/support" || exit 1
 
 exit "$cases_failed"
