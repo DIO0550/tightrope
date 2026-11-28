@@ -1,4 +1,5 @@
 # 禁止する理由は rules/coding.md「I/O を持ってよい場所」、このファイルへ写す決まりは根の clippy.toml の冒頭。
+# この一覧は harness/githooks/lib/io-outside-driver.sh も、infrastructure の I/O を持ってよい場所の外へ当てる。
 allow-unwrap-in-tests = true
 allow-expect-in-tests = true
 

@@ -70,7 +70,7 @@ crate_with_locked_dep_of() {
   local root="$work/$1"
   place_locked_crate "$root/app" app || exit 1
   add_path_dep "$root/app" "$root/dep" || exit 1
-  (cd "$root/app" && cargo generate-lockfile --offline --quiet) || exit 1
+  place_lockfile "$root/app" || exit 1
   echo "$root/app"
 }
 

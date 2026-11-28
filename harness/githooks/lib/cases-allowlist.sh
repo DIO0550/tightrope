@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 #
 # 検査の判定表(`crate-deps-cases.sh` / `folder-deps-cases.sh` / `lints-inheritance-cases.sh` / `lint-level-attributes-cases.sh` /
-# `test-placement-cases.sh` / `test-file-length-cases.sh` / `comment-style-cases.sh` / `cargo-config-rustflags-cases.sh`)が共有する、
+# `test-placement-cases.sh` / `test-file-length-cases.sh` / `comment-style-cases.sh` / `cargo-config-rustflags-cases.sh` /
+# `io-outside-driver-cases.sh`)が共有する、
 # 1 ケースの判定の綴りと、ケースの走らせ方。
 #
 # 使い方: 判定表が `cases-report.sh` を source した後に source する。次の大域変数を前提にする。

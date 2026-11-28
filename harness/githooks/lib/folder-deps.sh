@@ -58,7 +58,8 @@
 # 見ない形
 # - マクロの展開先(`$crate::` は定義した側で拾う)
 # - 名前に出ない I/O(`Path::exists` などのメソッド、`pub type` を経由した I/O の型)と、`std::io` / `std::env` /
-#   `std::net`
+#   `std::net`(infrastructure では、このうち `crates/domain` の clippy の一覧に並ぶメソッドと項目を `io-outside-driver.sh` が
+#   見る。`pub type` を経由した I/O の型は、`io-outside-driver.sh` も見ない)
 # - `pub` の付いた use が、I/O や serde に付けた別名を再エクスポートする形(`use std::fs as x; pub use self::x;`)
 # - 行頭が `//` の行の中身(doc の例と、複数行の文字列・ブロックコメントの中で行頭が `//` になった行の
 #   後ろのコードを含む)

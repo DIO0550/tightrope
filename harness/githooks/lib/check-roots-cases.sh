@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# pre-push が行数・置き場所・コメント・フォルダの依存・lint の水準の属性・cargo の設定の rustflags の検査に渡す根の判定表。
+# pre-push が行数・置き場所・コメント・フォルダの依存・lint の水準の属性・cargo の設定の rustflags・infrastructure の driver の外の I/O の検査に渡す根の判定表。
 #
 # 本物の `pre-push` と `harness/githooks/lib/*.sh` を使い捨てのリポジトリへ写し、集計の `check-tally.sh`
 # だけを、検査を走らせずに名前とコマンドをタブ区切りで 1 行に書き出す偽物に差し替えて流す。根を決める
@@ -131,6 +131,7 @@ comment_script=harness/githooks/lib/comment-style.sh
 folder_script=harness/githooks/lib/folder-deps.sh
 lint_level_script=harness/githooks/lib/lint-level-attributes.sh
 cargo_config_script=harness/githooks/lib/cargo-config-rustflags.sh
+io_outside_driver_script=harness/githooks/lib/io-outside-driver.sh
 
 report "$(joined_sorted "$(per_crate_checks_of テストのファイルの行数 "$length_script")")" \
   "$(joined_sorted "$(checks_of "$length_script" | to_report_form)")" \
@@ -153,6 +154,9 @@ report "フォルダの依存の許可表|bash $folder_script" \
 report "lint の水準の属性|bash $lint_level_script" \
   "$(checks_of "$lint_level_script" | to_report_form)" \
   "lint の水準の属性の検査は根を渡さずに 1 回だけ走る"
+report "infrastructure の driver の外の I/O|bash $io_outside_driver_script" \
+  "$(checks_of "$io_outside_driver_script" | to_report_form)" \
+  "infrastructure の driver の外の I/O の検査は根を渡さずに 1 回だけ走る"
 report "crates/a/src/m/x.rs:2,crates/c/tests/cli.rs:2,crates/c/tests/fixtures/sample.rs:2" \
   "$(joined_sorted "$(reported_locations_of "$lint_level_script")")" \
   "pre-push の呼び方で、crates/*/src・crates/*/tests・crate の tests/fixtures/ の lint の水準の属性が報告される"

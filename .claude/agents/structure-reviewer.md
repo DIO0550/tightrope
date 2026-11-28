@@ -46,9 +46,9 @@ model: inherit
 - **差分の `use` と依存を `rules/architecture.md`「依存方向のルール（必須要件）」の箇条に照らす。** 同じ節の表の検査が
   落とすものは検査に任せる
 - **I/O が I/O の境界の外に増えていないか**（`rules/coding.md`「I/O を持ってよい場所」）。`rules/architecture.md` の
-  同じ表の検査が見ない形（`Path` のメソッド・`std::io` / `std::env` / `std::net`）を
+  同じ表の検査が見ない形（clippy.toml の一覧に無い I/O の項目と、`harness/githooks/lib/io-outside-driver.sh` の冒頭の「見ない形」）を
   `grep -rnE '(\.|\bPath::)(exists|try_exists|is_file|is_dir|is_symlink|metadata|symlink_metadata|canonicalize|read_link|read_dir)\(|\b(io|env|net)::' crates/*/src/`
-  で拾い、infrastructure では `infrastructure/src/driver/` の外に出ていないか、I/O を持たない crate では clippy.toml の一覧に無い I/O の項目でないかを見る
+  で拾い、一覧に無い I/O の項目でないか、infrastructure では `io-outside-driver.sh` の「見ない形」に当たる I/O が driver の外に出ていないかを見る
 - **`pub` が必要以上に広がっていないか。** モジュール外から触る必要の無いものが `pub` になって
   いないか、`pub(crate)` で足りないか
 
