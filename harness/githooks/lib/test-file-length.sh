@@ -6,24 +6,34 @@
 # 使い方: bash harness/githooks/lib/test-file-length.sh <根>   (<根> は crate の src のディレクトリ)
 # 上限の行数を超えたテストのファイルを見出しの下に `<根>/<相対パス>: <行数> 行` で並べて exit 1。
 # 無ければ何も出さずに exit 0。<根> を 1 つ渡していない(0 個・2 個以上)・<根> が空・<根> がディレクトリでない・
-# 走査に失敗した・共有のファイル(test-file-path.sh・crate-src-root.sh)が読めないときは exit 2。
+# 走査に失敗した・共有のファイル(test-file-path.sh・crate-src-root.sh)が読めないときは、理由を
+# `test-file-length: <理由>` で標準エラーへ出して exit 2。
 #
 # 測るのは `test-file-path.sh` の一覧に当たる `*.rs`(test-placement.sh と共有)。行数は物理行で数え、
 # 末尾に改行の無い最後の行も 1 行、0 バイトのファイルは 0 行とする。上限は引数・環境変数で変えさせない。
 
 set -uo pipefail
 
+check_name=test-file-length
+
+# 検査できなかった理由を標準エラーへ出し、exit 2 で終える。
+#
+# $1 理由
+exit_unavailable() {
+  printf '%s: %s\n' "$check_name" "$1" >&2
+  exit 2
+}
+
 here="$(CDPATH= cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-. "$here/test-file-path.sh" || exit 2
-. "$here/crate-src-root.sh" || exit 2
+. "$here/test-file-path.sh" || exit_unavailable "$here/test-file-path.sh を読み込めません"
+. "$here/crate-src-root.sh" || exit_unavailable "$here/crate-src-root.sh を読み込めません"
 
 # 1 つのテストの観点を読み切れる量。テストの観点の数そのものはレビューが見る。
 max_lines=100
 
-root="$(crate_src_root_of test-file-length "$@")" || exit 2
+root="$(crate_src_root_of "$check_name" "$@")" || exit 2
 if [ ! -d "$root" ]; then
-  printf 'test-file-length: %s はディレクトリではありません\n' "$root" >&2
-  exit 2
+  exit_unavailable "$root はディレクトリではありません"
 fi
 
 over="$(awk_rs_files_under "$root" -v root="${root%/}" -v max="$max_lines" "$test_file_path_awk"'
@@ -41,8 +51,7 @@ over="$(awk_rs_files_under "$root" -v root="${root%/}" -v max="$max_lines" "$tes
 scan_status=$?
 
 if [ "$scan_status" -ne 0 ]; then
-  printf 'test-file-length: %s の走査に失敗しました(終了コード %s)\n' "$root" "$scan_status" >&2
-  exit 2
+  exit_unavailable "$root の走査に失敗しました(終了コード $scan_status)"
 fi
 
 if [ -z "$over" ]; then
